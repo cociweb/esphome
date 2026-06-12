@@ -49,6 +49,8 @@ struct A2DPEventRecord {
   char peer_name[ESP_BT_GAP_MAX_BDNAME_LEN + 1];
 };
 
+class A2DPAVRCP;
+
 /**
  * @brief Central A2DP hub component.
  *
@@ -60,6 +62,7 @@ struct A2DPEventRecord {
  * Only supported on the original ESP32 (BR/EDR capable).
  */
 class A2DP : public Component {
+  friend class A2DPAVRCP;
  public:
   float get_setup_priority() const override { return setup_priority::BLUETOOTH; }
   void setup() override;
