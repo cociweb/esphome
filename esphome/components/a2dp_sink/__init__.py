@@ -21,6 +21,7 @@ CONF_USE_PSRAM = "use_psram"
 CONF_PCM_DRAIN_THROTTLE = "pcm_drain_throttle"
 CONF_SPEAKER_OUTPUT_DELAY = "speaker_output_delay"
 CONF_SPEAKER_PIPELINE_DELAY = "speaker_pipeline_delay"
+CONF_DISCOVERABLE_DURATION = "discoverable_duration"
 CONF_COEXISTENCE = "coexistence"
 CONF_SOFTWARE_COEXISTENCE = "software_coexistence"
 CONF_PREFER_BT_WHILE_STREAMING = "prefer_bt_while_streaming"
@@ -66,6 +67,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PCM_DRAIN_THROTTLE, default="500ms"): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_SPEAKER_OUTPUT_DELAY, default="200ms"): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_SPEAKER_PIPELINE_DELAY, default="200ms"): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_DISCOVERABLE_DURATION): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_COEXISTENCE): COEXISTENCE_SCHEMA,
         }
     ).extend(cv.COMPONENT_SCHEMA),
@@ -113,6 +115,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_pcm_drain_throttle_ms(config[CONF_PCM_DRAIN_THROTTLE].total_milliseconds))
     cg.add(var.set_output_delay_ms(config[CONF_SPEAKER_OUTPUT_DELAY].total_milliseconds))
     cg.add(var.set_pipeline_delay_ms(config[CONF_SPEAKER_PIPELINE_DELAY].total_milliseconds))
+    if CONF_DISCOVERABLE_DURATION in config:
+        cg.add(var.set_discoverable_duration_ms(config[CONF_DISCOVERABLE_DURATION].total_milliseconds))
 
     if coex := config.get(CONF_COEXISTENCE):
         cg.add(var.set_software_coexistence(coex[CONF_SOFTWARE_COEXISTENCE]))

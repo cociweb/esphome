@@ -34,6 +34,9 @@ enum class A2DPEvent : uint8_t {
   AUDIO_STOPPED,
   AUDIO_CFG_UPDATED,
   PEER_NAME_UPDATED,
+  AVRCP_VOLUME_CHANGED,
+  AVRCP_CT_CONNECTED,
+  AVRCP_CT_DISCONNECTED,
 };
 
 /// @brief Minimal event record posted onto the FreeRTOS queue.
@@ -41,6 +44,7 @@ struct A2DPEventRecord {
   A2DPEvent type;
   uint16_t sample_rate;
   uint8_t channels;
+  uint8_t volume;  ///< AVRCP_VOLUME_CHANGED: 0-127
   char peer_name[ESP_BT_GAP_MAX_BDNAME_LEN + 1];
 };
 
@@ -71,6 +75,8 @@ class A2DPSink : public Component {
   void set_pcm_drain_throttle_ms(uint32_t ms) { this->pcm_drain_throttle_ms_ = ms; }
   void set_output_delay_ms(uint32_t ms) { this->output_delay_ms_ = ms; }
   void set_pipeline_delay_ms(uint32_t ms) { this->pipeline_delay_ms_ = ms; }
+  /// @brief How long to remain discoverable after enable/reconnect (0 = indefinite).
+  void set_discoverable_duration_ms(uint32_t ms) { this->discoverable_duration_ms_ = ms; }
 
   void set_software_coexistence(bool v) { this->software_coexistence_ = v; }
   void set_prefer_bt_while_streaming(bool v) { this->prefer_bt_while_streaming_ = v; }
@@ -90,11 +96,25 @@ class A2DPSink : public Component {
   bool is_enabled() const { return this->enabled_; }
   bool is_connected() const { return this->connected_; }
   bool is_audio_streaming() const { return this->audio_streaming_; }
+  bool is_discoverable() const { return this->discoverable_; }
   const std::string &get_peer_name() const { return this->peer_name_; }
 
   /// @brief Actual sample rate reported by the A2DP audio config event.
   uint32_t get_actual_sample_rate() const { return this->actual_sample_rate_.load(); }
   uint8_t get_actual_channels() const { return this->actual_channels_.load(); }
+
+  /// @brief Last AVRCP absolute volume received from the remote (0-127).
+  uint8_t get_avrcp_volume() const { return this->avrcp_volume_; }
+  bool is_avrcp_ct_connected() const { return this->avrcp_ct_connected_; }
+
+  // --- AVRCP transport control (safe to call from main loop) ---
+  void avrc_play() { this->send_avrc_passthrough_(ESP_AVRC_PT_CMD_PLAY); }
+  void avrc_pause() { this->send_avrc_passthrough_(ESP_AVRC_PT_CMD_PAUSE); }
+  void avrc_next() { this->send_avrc_passthrough_(ESP_AVRC_PT_CMD_FORWARD); }
+  void avrc_previous() { this->send_avrc_passthrough_(ESP_AVRC_PT_CMD_BACKWARD); }
+  void avrc_volume_up() { this->send_avrc_passthrough_(ESP_AVRC_PT_CMD_VOL_UP); }
+  void avrc_volume_down() { this->send_avrc_passthrough_(ESP_AVRC_PT_CMD_VOL_DOWN); }
+  void avrc_stop() { this->send_avrc_passthrough_(ESP_AVRC_PT_CMD_STOP); }
 
   /// @brief Return raw ring buffer pointer for use by the media source task.
   ring_buffer::RingBuffer *get_ring_buffer() { return this->ring_buffer_.get(); }
@@ -119,23 +139,35 @@ class A2DPSink : public Component {
     this->audio_streaming_callback_.add(std::forward<F>(callback));
   }
 
+  template<typename F>
+  void add_on_avrcp_volume_callback(F &&callback) {
+    this->avrcp_volume_callback_.add(std::forward<F>(callback));
+  }
+
  protected:
   // --- BT stack lifecycle ---
   bool init_bt_();
   void deinit_bt_();
   void set_coex_preference_(bool prefer_bt);
+  void start_discovery_();
+  void stop_discovery_();
 
   // --- Static ESP-IDF callbacks (forward to global instance) ---
   static void s_a2d_callback_(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param);
   static void s_a2d_data_callback_(const uint8_t *data, uint32_t len);
   static void s_avrc_tg_callback_(esp_avrc_tg_cb_event_t event, esp_avrc_tg_cb_param_t *param);
+  static void s_avrc_ct_callback_(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t *param);
   static void s_gap_callback_(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param);
 
   // --- Instance-level event handlers ---
   void handle_a2d_event_(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param);
   void handle_audio_data_(const uint8_t *data, uint32_t len);
   void handle_avrc_tg_event_(esp_avrc_tg_cb_event_t event, esp_avrc_tg_cb_param_t *param);
+  void handle_avrc_ct_event_(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t *param);
   void handle_gap_event_(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param);
+
+  // --- AVRCP CT passthrough helper ---
+  void send_avrc_passthrough_(uint8_t key_code);
 
   // --- Configuration ---
   const char *device_name_{"ESPHome"};
@@ -146,6 +178,7 @@ class A2DPSink : public Component {
   uint32_t pcm_drain_throttle_ms_{500};
   uint32_t output_delay_ms_{200};
   uint32_t pipeline_delay_ms_{200};
+  uint32_t discoverable_duration_ms_{0};  ///< 0 = indefinite
 
   bool software_coexistence_{false};
   bool prefer_bt_while_streaming_{true};
@@ -156,9 +189,14 @@ class A2DPSink : public Component {
   bool enabled_{false};
   bool connected_{false};
   bool audio_streaming_{false};
+  bool discoverable_{false};
+  uint32_t discoverable_started_at_{0};
   std::atomic<uint32_t> actual_sample_rate_{44100};
   std::atomic<uint8_t> actual_channels_{2};
   std::string peer_name_;
+  uint8_t avrcp_volume_{127};      ///< Last AVRCP absolute volume (0-127)
+  bool avrcp_ct_connected_{false}; ///< Whether AVRCP CT link is up
+  uint8_t avrc_ct_tl_{0};         ///< AVRCP CT transaction label (0-14)
 
   // --- FreeRTOS event queue (BT callbacks → loop()) ---
   QueueHandle_t event_queue_{nullptr};
@@ -171,6 +209,7 @@ class A2DPSink : public Component {
   LazyCallbackManager<void(bool)> connection_callback_;
   LazyCallbackManager<void(const std::string &)> peer_name_callback_;
   LazyCallbackManager<void(bool)> audio_streaming_callback_;
+  LazyCallbackManager<void(uint8_t)> avrcp_volume_callback_;
 };
 
 /// @brief Global singleton pointer required by ESP-IDF static callbacks.

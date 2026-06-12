@@ -34,6 +34,11 @@ void A2DPSink::s_avrc_tg_callback_(esp_avrc_tg_cb_event_t event, esp_avrc_tg_cb_
     global_a2dp_sink->handle_avrc_tg_event_(event, param);
 }
 
+void A2DPSink::s_avrc_ct_callback_(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t *param) {
+  if (global_a2dp_sink != nullptr)
+    global_a2dp_sink->handle_avrc_ct_event_(event, param);
+}
+
 void A2DPSink::s_gap_callback_(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param) {
   if (global_a2dp_sink != nullptr)
     global_a2dp_sink->handle_gap_event_(event, param);
@@ -71,12 +76,18 @@ void A2DPSink::setup() {
 }
 
 void A2DPSink::loop() {
+  if (this->discoverable_ && this->discoverable_duration_ms_ > 0 &&
+      (millis() - this->discoverable_started_at_) >= this->discoverable_duration_ms_) {
+    this->stop_discovery_();
+  }
+
   A2DPEventRecord ev;
   while (xQueueReceive(this->event_queue_, &ev, 0) == pdTRUE) {
     switch (ev.type) {
       case A2DPEvent::CONNECTED:
         if (!this->connected_) {
           this->connected_ = true;
+          this->stop_discovery_();
           ESP_LOGI(TAG, "BT connected");
           if (this->software_coexistence_ && !this->prefer_bt_while_discoverable_)
             this->set_coex_preference_(true);
@@ -93,6 +104,7 @@ void A2DPSink::loop() {
             this->set_coex_preference_(false);
           this->connection_callback_.call(false);
           this->audio_streaming_callback_.call(false);
+          this->start_discovery_();
         }
         break;
 
@@ -127,6 +139,22 @@ void A2DPSink::loop() {
         this->peer_name_ = ev.peer_name;
         ESP_LOGI(TAG, "BT peer name: %s", ev.peer_name);
         this->peer_name_callback_.call(this->peer_name_);
+        break;
+
+      case A2DPEvent::AVRCP_VOLUME_CHANGED:
+        this->avrcp_volume_ = ev.volume;
+        ESP_LOGD(TAG, "AVRCP volume: %u/127 (%.0f%%)", ev.volume, ev.volume * 100.0f / 127.0f);
+        this->avrcp_volume_callback_.call(ev.volume);
+        break;
+
+      case A2DPEvent::AVRCP_CT_CONNECTED:
+        this->avrcp_ct_connected_ = true;
+        ESP_LOGD(TAG, "AVRCP CT connected");
+        break;
+
+      case A2DPEvent::AVRCP_CT_DISCONNECTED:
+        this->avrcp_ct_connected_ = false;
+        ESP_LOGD(TAG, "AVRCP CT disconnected");
         break;
 
       default:
@@ -242,23 +270,54 @@ bool A2DPSink::init_bt_() {
     return false;
   }
 
-  // Make the device connectable and discoverable
-  esp_bt_gap_set_scan_mode(ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE);
+  esp_avrc_ct_register_callback(s_avrc_ct_callback_);
+  ret = esp_avrc_ct_init();
+  if (ret != ESP_OK) {
+    ESP_LOGW(TAG, "esp_avrc_ct_init failed: %s (CT transport control unavailable)", esp_err_to_name(ret));
+  }
+
+  this->start_discovery_();
 
   return true;
 }
 
 void A2DPSink::deinit_bt_() {
+  this->discoverable_ = false;
   esp_bt_gap_set_scan_mode(ESP_BT_NON_CONNECTABLE, ESP_BT_NON_DISCOVERABLE);
 
+  esp_avrc_ct_deinit();
   esp_avrc_tg_deinit();
   esp_a2d_sink_deinit();
+  this->avrcp_ct_connected_ = false;
 
   esp_bluedroid_disable();
   esp_bluedroid_deinit();
 
   esp_bt_controller_disable();
   esp_bt_controller_deinit();
+}
+
+// ---------------------------------------------------------------------------
+// Discovery helpers
+// ---------------------------------------------------------------------------
+
+void A2DPSink::start_discovery_() {
+  esp_bt_gap_set_scan_mode(ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE);
+  this->discoverable_ = true;
+  this->discoverable_started_at_ = millis();
+  if (this->discoverable_duration_ms_ > 0) {
+    ESP_LOGI(TAG, "BT discoverable for %u ms", this->discoverable_duration_ms_);
+  } else {
+    ESP_LOGI(TAG, "BT discoverable (indefinite)");
+  }
+}
+
+void A2DPSink::stop_discovery_() {
+  if (!this->discoverable_)
+    return;
+  esp_bt_gap_set_scan_mode(ESP_BT_CONNECTABLE, ESP_BT_NON_DISCOVERABLE);
+  this->discoverable_ = false;
+  ESP_LOGI(TAG, "BT discovery stopped");
 }
 
 // ---------------------------------------------------------------------------
@@ -357,17 +416,21 @@ void A2DPSink::handle_avrc_tg_event_(esp_avrc_tg_cb_event_t event, esp_avrc_tg_c
   switch (event) {
     case ESP_AVRC_TG_SET_ABSOLUTE_VOLUME_CMD_EVT: {
       uint8_t vol = param->set_abs_vol.abs_vol;
-      ESP_LOGD(TAG, "AVRCP absolute volume: %u", vol);
-      // Acknowledge the command
+      // Acknowledge immediately from BT task (required by spec)
       esp_avrc_rn_param_t rn_param;
       rn_param.volume = vol;
       esp_avrc_tg_send_rn_rsp(ESP_AVRC_RN_VOLUME_CHANGE, ESP_AVRC_RN_RSP_CHANGED, &rn_param);
+      // Queue the event for main-loop processing
+      A2DPEventRecord ev{};
+      ev.type = A2DPEvent::AVRCP_VOLUME_CHANGED;
+      ev.volume = vol;
+      xQueueSend(this->event_queue_, &ev, 0);
       break;
     }
     case ESP_AVRC_TG_REGISTER_NOTIFICATION_EVT: {
       if (param->reg_ntf.event_id == ESP_AVRC_RN_VOLUME_CHANGE) {
         esp_avrc_rn_param_t rn_param;
-        rn_param.volume = 100;
+        rn_param.volume = this->avrcp_volume_;
         esp_avrc_tg_send_rn_rsp(ESP_AVRC_RN_VOLUME_CHANGE, ESP_AVRC_RN_RSP_INTERIM, &rn_param);
       }
       break;
@@ -375,6 +438,44 @@ void A2DPSink::handle_avrc_tg_event_(esp_avrc_tg_cb_event_t event, esp_avrc_tg_c
     default:
       break;
   }
+}
+
+// ---------------------------------------------------------------------------
+// AVRCP CT callback handler
+// ---------------------------------------------------------------------------
+
+void A2DPSink::handle_avrc_ct_event_(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t *param) {
+  switch (event) {
+    case ESP_AVRC_CT_CONNECTION_STATE_EVT: {
+      A2DPEventRecord ev{};
+      ev.type = param->conn_stat.connected ? A2DPEvent::AVRCP_CT_CONNECTED : A2DPEvent::AVRCP_CT_DISCONNECTED;
+      xQueueSend(this->event_queue_, &ev, 0);
+      break;
+    }
+    case ESP_AVRC_CT_PASSTHROUGH_RSP_EVT:
+      // After receiving PRESSED response, automatically send RELEASED
+      if (param->psth_rsp.key_state == ESP_AVRC_PT_CMD_STATE_PRESSED) {
+        uint8_t rel_tl = (param->psth_rsp.tl + 1) % 15;
+        esp_avrc_ct_send_passthrough_cmd(rel_tl, param->psth_rsp.key_code, ESP_AVRC_PT_CMD_STATE_RELEASED);
+      }
+      break;
+    default:
+      break;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// AVRCP CT passthrough helper
+// ---------------------------------------------------------------------------
+
+void A2DPSink::send_avrc_passthrough_(uint8_t key_code) {
+  if (!this->avrcp_ct_connected_) {
+    ESP_LOGW(TAG, "AVRCP CT not connected — passthrough command ignored");
+    return;
+  }
+  uint8_t tl = this->avrc_ct_tl_;
+  this->avrc_ct_tl_ = (this->avrc_ct_tl_ + 2) % 15;  // Skip ahead by 2 (press + release TLs)
+  esp_avrc_ct_send_passthrough_cmd(tl, key_code, ESP_AVRC_PT_CMD_STATE_PRESSED);
 }
 
 // ---------------------------------------------------------------------------
