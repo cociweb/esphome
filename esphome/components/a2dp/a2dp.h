@@ -82,6 +82,7 @@ class A2DP : public Component {
 
   void enable();
   void disable();
+  void restart_discovery();
 
   // --- State accessors ---
 
@@ -226,6 +227,12 @@ template<typename... Ts>
 class A2DPDisableAction : public Action<Ts...>, public Parented<A2DP> {
  public:
   void play(const Ts &...x) override { this->parent_->disable(); }
+};
+
+template<typename... Ts>
+class A2DPRestartDiscoveryAction : public Action<Ts...>, public Parented<A2DP> {
+ public:
+  void play(const Ts &...x) override { this->parent_->restart_discovery(); }
 };
 
 }  // namespace esphome::a2dp

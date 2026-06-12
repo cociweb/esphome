@@ -229,6 +229,19 @@ void A2DP::disable() {
   ESP_LOGI(TAG, "A2DP hub disabled");
 }
 
+void A2DP::restart_discovery() {
+  if (!this->enabled_) {
+    ESP_LOGW(TAG, "restart_discovery() called but BT not enabled — calling enable()");
+    this->enable();
+    return;
+  }
+  if (this->connected_) {
+    ESP_LOGD(TAG, "restart_discovery() called but device is connected — ignoring");
+    return;
+  }
+  this->start_discovery_();
+}
+
 // ---------------------------------------------------------------------------
 // BT stack init / deinit
 // ---------------------------------------------------------------------------

@@ -36,6 +36,11 @@ A2DPDisableAction = a2dp_ns.class_(
     automation.Action,
     cg.Parented.template(A2DP),
 )
+A2DPRestartDiscoveryAction = a2dp_ns.class_(
+    "A2DPRestartDiscoveryAction",
+    automation.Action,
+    cg.Parented.template(A2DP),
+)
 
 COEXISTENCE_SCHEMA = cv.Schema(
     {
@@ -77,6 +82,12 @@ A2DP_ACTION_SCHEMA = automation.maybe_simple_id(
 @automation.register_action(
     "a2dp.disable",
     A2DPDisableAction,
+    A2DP_ACTION_SCHEMA,
+    synchronous=True,
+)
+@automation.register_action(
+    "a2dp.restart_discovery",
+    A2DPRestartDiscoveryAction,
     A2DP_ACTION_SCHEMA,
     synchronous=True,
 )
