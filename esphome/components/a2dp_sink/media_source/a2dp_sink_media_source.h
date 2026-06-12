@@ -23,8 +23,8 @@ static constexpr uint32_t READER_TASK_STACK = 3072;
 /// @brief Priority for the reader task — above normal but below BT callbacks.
 static constexpr UBaseType_t READER_TASK_PRIORITY = 5;
 /// @brief Chunk size read per iteration in the reader task (bytes).
-/// 4096 == 1024 stereo 16-bit frames ≈ 23 ms at 44100 Hz.
-static constexpr size_t READER_CHUNK_SIZE = 4096;
+/// 2048 == 512 stereo 16-bit frames ≈ 11.5 ms at 44100 Hz.
+static constexpr size_t READER_CHUNK_SIZE = 2048;
 /// @brief Max milliseconds the ring buffer will block waiting for data.
 static constexpr uint32_t RB_READ_TIMEOUT_MS = 20;
 /// @brief Timeout (ms) passed to write_output() per call.

@@ -4,6 +4,7 @@
 
 #if defined(USE_ESP32) && defined(USE_A2DP_SINK) && defined(USE_TEXT_SENSOR)
 
+#include "esphome/components/a2dp/a2dp.h"
 #include "esphome/components/a2dp_sink/a2dp_sink.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/core/component.h"
@@ -17,10 +18,10 @@ class A2DPSinkTextSensor : public text_sensor::TextSensor,
                            public Parented<A2DPSink> {
  public:
   void setup() override {
-    this->parent_->add_on_peer_name_callback([this](const std::string &name) {
+    this->parent_->get_parent()->add_on_peer_name_callback([this](const std::string &name) {
       this->publish_state(name);
     });
-    this->parent_->add_on_connection_callback([this](bool connected) {
+    this->parent_->get_parent()->add_on_connection_callback([this](bool connected) {
       if (!connected) {
         this->publish_state("");
       }

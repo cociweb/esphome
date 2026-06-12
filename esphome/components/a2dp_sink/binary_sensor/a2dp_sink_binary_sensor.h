@@ -4,6 +4,7 @@
 
 #if defined(USE_ESP32) && defined(USE_A2DP_SINK) && defined(USE_BINARY_SENSOR)
 
+#include "esphome/components/a2dp/a2dp.h"
 #include "esphome/components/a2dp_sink/a2dp_sink.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/core/component.h"
@@ -17,10 +18,10 @@ class A2DPSinkBinarySensor : public binary_sensor::BinarySensor,
                              public Parented<A2DPSink> {
  public:
   void setup() override {
-    this->parent_->add_on_connection_callback([this](bool connected) {
+    this->parent_->get_parent()->add_on_connection_callback([this](bool connected) {
       this->publish_state(connected);
     });
-    this->publish_state(this->parent_->is_connected());
+    this->publish_state(this->parent_->get_parent()->is_connected());
   }
 
   void dump_config() override {

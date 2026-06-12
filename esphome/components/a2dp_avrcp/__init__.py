@@ -1,30 +1,30 @@
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components.a2dp_sink import CONF_A2DP_SINK_ID, A2DPSink, a2dp_sink_ns
+from esphome.components.a2dp import CONF_A2DP_ID, A2DP, a2dp_ns
 from esphome.const import CONF_ID
 from esphome.core import ID
 from esphome.cpp_generator import TemplateArgsType
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@cociweb"]
-DEPENDENCIES = ["a2dp_sink"]
+DEPENDENCIES = ["a2dp"]
 
 CONF_ON_VOLUME_CHANGED = "on_volume_changed"
 
-A2DPSinkAVRCP = a2dp_sink_ns.class_(
-    "A2DPSinkAVRCP",
+A2DPAVRCP = a2dp_ns.class_(
+    "A2DPAVRCP",
     cg.Component,
-    cg.Parented.template(A2DPSink),
+    cg.Parented.template(A2DP),
 )
 
-A2DPSinkAVRCPPlayAction      = a2dp_sink_ns.class_("A2DPSinkAVRCPPlayAction",      automation.Action)
-A2DPSinkAVRCPPauseAction     = a2dp_sink_ns.class_("A2DPSinkAVRCPPauseAction",     automation.Action)
-A2DPSinkAVRCPNextAction      = a2dp_sink_ns.class_("A2DPSinkAVRCPNextAction",      automation.Action)
-A2DPSinkAVRCPPreviousAction  = a2dp_sink_ns.class_("A2DPSinkAVRCPPreviousAction",  automation.Action)
-A2DPSinkAVRCPStopAction      = a2dp_sink_ns.class_("A2DPSinkAVRCPStopAction",      automation.Action)
-A2DPSinkAVRCPVolumeUpAction  = a2dp_sink_ns.class_("A2DPSinkAVRCPVolumeUpAction",  automation.Action)
-A2DPSinkAVRCPVolumeDownAction = a2dp_sink_ns.class_("A2DPSinkAVRCPVolumeDownAction", automation.Action)
+A2DPAVRCPPlayAction       = a2dp_ns.class_("A2DPAVRCPPlayAction",       automation.Action)
+A2DPAVRCPPauseAction      = a2dp_ns.class_("A2DPAVRCPPauseAction",      automation.Action)
+A2DPAVRCPNextAction       = a2dp_ns.class_("A2DPAVRCPNextAction",       automation.Action)
+A2DPAVRCPPreviousAction   = a2dp_ns.class_("A2DPAVRCPPreviousAction",   automation.Action)
+A2DPAVRCPStopAction       = a2dp_ns.class_("A2DPAVRCPStopAction",       automation.Action)
+A2DPAVRCPVolumeUpAction   = a2dp_ns.class_("A2DPAVRCPVolumeUpAction",   automation.Action)
+A2DPAVRCPVolumeDownAction = a2dp_ns.class_("A2DPAVRCPVolumeDownAction", automation.Action)
 
 _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
@@ -37,8 +37,8 @@ _CALLBACK_AUTOMATIONS = (
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(A2DPSinkAVRCP),
-            cv.GenerateID(CONF_A2DP_SINK_ID): cv.use_id(A2DPSink),
+            cv.GenerateID(): cv.declare_id(A2DPAVRCP),
+            cv.GenerateID(CONF_A2DP_ID): cv.use_id(A2DP),
             cv.Optional(CONF_ON_VOLUME_CHANGED): automation.validate_automation({}),
         }
     )
@@ -46,49 +46,49 @@ CONFIG_SCHEMA = (
 )
 
 AVRCP_SIMPLE_ACTION_SCHEMA = automation.maybe_simple_id(
-    cv.Schema({cv.GenerateID(): cv.use_id(A2DPSinkAVRCP)})
+    cv.Schema({cv.GenerateID(): cv.use_id(A2DPAVRCP)})
 )
 
 
 @automation.register_action(
     "a2dp_avrcp.play",
-    A2DPSinkAVRCPPlayAction,
+    A2DPAVRCPPlayAction,
     AVRCP_SIMPLE_ACTION_SCHEMA,
     synchronous=True,
 )
 @automation.register_action(
     "a2dp_avrcp.pause",
-    A2DPSinkAVRCPPauseAction,
+    A2DPAVRCPPauseAction,
     AVRCP_SIMPLE_ACTION_SCHEMA,
     synchronous=True,
 )
 @automation.register_action(
     "a2dp_avrcp.next",
-    A2DPSinkAVRCPNextAction,
+    A2DPAVRCPNextAction,
     AVRCP_SIMPLE_ACTION_SCHEMA,
     synchronous=True,
 )
 @automation.register_action(
     "a2dp_avrcp.previous",
-    A2DPSinkAVRCPPreviousAction,
+    A2DPAVRCPPreviousAction,
     AVRCP_SIMPLE_ACTION_SCHEMA,
     synchronous=True,
 )
 @automation.register_action(
     "a2dp_avrcp.stop",
-    A2DPSinkAVRCPStopAction,
+    A2DPAVRCPStopAction,
     AVRCP_SIMPLE_ACTION_SCHEMA,
     synchronous=True,
 )
 @automation.register_action(
     "a2dp_avrcp.volume_up",
-    A2DPSinkAVRCPVolumeUpAction,
+    A2DPAVRCPVolumeUpAction,
     AVRCP_SIMPLE_ACTION_SCHEMA,
     synchronous=True,
 )
 @automation.register_action(
     "a2dp_avrcp.volume_down",
-    A2DPSinkAVRCPVolumeDownAction,
+    A2DPAVRCPVolumeDownAction,
     AVRCP_SIMPLE_ACTION_SCHEMA,
     synchronous=True,
 )
@@ -106,5 +106,6 @@ async def avrcp_action_to_code(
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    await cg.register_parented(var, config[CONF_A2DP_SINK_ID])
+    await cg.register_parented(var, config[CONF_A2DP_ID])
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
+    cg.add_define("USE_A2DP_AVRCP")
