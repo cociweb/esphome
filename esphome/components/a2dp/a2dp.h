@@ -7,6 +7,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/components/ring_buffer/ring_buffer.h"
 
 #include "freertos/FreeRTOS.h"
@@ -49,8 +50,6 @@ struct A2DPEventRecord {
   char peer_name[ESP_BT_GAP_MAX_BDNAME_LEN + 1];
 };
 
-class A2DPAVRCP;
-
 /**
  * @brief Central A2DP hub component.
  *
@@ -62,7 +61,6 @@ class A2DPAVRCP;
  * Only supported on the original ESP32 (BR/EDR capable).
  */
 class A2DP : public Component {
-  friend class A2DPAVRCP;
  public:
   float get_setup_priority() const override { return setup_priority::BLUETOOTH; }
   void setup() override;
@@ -129,6 +127,20 @@ class A2DP : public Component {
   template<typename F>
   void add_on_avrcp_ct_state_callback(F &&callback) {
     this->avrcp_ct_state_callback_.add(std::forward<F>(callback));
+  }
+
+  uint8_t get_avrcp_volume() const { return this->avrcp_volume_; }
+  bool is_avrcp_ct_connected() const { return this->avrcp_ct_connected_; }
+
+  /// @brief Send AVRCP CT passthrough command (press + auto-release via callback).
+  void send_avrc_passthrough(uint8_t key_code) {
+    if (!this->avrcp_ct_connected_) {
+      ESP_LOGW("a2dp", "AVRCP CT not connected — passthrough ignored");
+      return;
+    }
+    uint8_t tl = this->avrc_ct_tl_;
+    this->avrc_ct_tl_ = (this->avrc_ct_tl_ + 2) % 15;
+    esp_avrc_ct_send_passthrough_cmd(tl, key_code, ESP_AVRC_PT_CMD_STATE_PRESSED);
   }
 #endif
 

@@ -33,7 +33,7 @@ class A2DPAVRCP : public Component, public Parented<A2DP> {
   void dump_config() override {
     static const char *const TAG = "a2dp_avrcp";
     ESP_LOGCONFIG(TAG, "A2DP AVRCP:");
-    ESP_LOGCONFIG(TAG, "  CT connected: %s", this->parent_->avrcp_ct_connected_ ? "yes" : "no");
+    ESP_LOGCONFIG(TAG, "  CT connected: %s", this->parent_->is_avrcp_ct_connected() ? "yes" : "no");
   }
 
   template<typename F>
@@ -41,27 +41,15 @@ class A2DPAVRCP : public Component, public Parented<A2DP> {
     this->volume_callback_.add(std::forward<F>(callback));
   }
 
-  void play()           { this->send_passthrough_(ESP_AVRC_PT_CMD_PLAY); }
-  void pause()          { this->send_passthrough_(ESP_AVRC_PT_CMD_PAUSE); }
-  void next_track()     { this->send_passthrough_(ESP_AVRC_PT_CMD_FORWARD); }
-  void previous_track() { this->send_passthrough_(ESP_AVRC_PT_CMD_BACKWARD); }
-  void stop()           { this->send_passthrough_(ESP_AVRC_PT_CMD_STOP); }
-  void volume_up()      { this->send_passthrough_(ESP_AVRC_PT_CMD_VOL_UP); }
-  void volume_down()    { this->send_passthrough_(ESP_AVRC_PT_CMD_VOL_DOWN); }
+  void play()           { this->parent_->send_avrc_passthrough(ESP_AVRC_PT_CMD_PLAY); }
+  void pause()          { this->parent_->send_avrc_passthrough(ESP_AVRC_PT_CMD_PAUSE); }
+  void next_track()     { this->parent_->send_avrc_passthrough(ESP_AVRC_PT_CMD_FORWARD); }
+  void previous_track() { this->parent_->send_avrc_passthrough(ESP_AVRC_PT_CMD_BACKWARD); }
+  void stop()           { this->parent_->send_avrc_passthrough(ESP_AVRC_PT_CMD_STOP); }
+  void volume_up()      { this->parent_->send_avrc_passthrough(ESP_AVRC_PT_CMD_VOL_UP); }
+  void volume_down()    { this->parent_->send_avrc_passthrough(ESP_AVRC_PT_CMD_VOL_DOWN); }
 
-  uint8_t get_volume() const { return this->parent_->avrcp_volume_; }
-
- protected:
-  void send_passthrough_(uint8_t key_code) {
-    if (!this->parent_->avrcp_ct_connected_) {
-      static const char *const TAG = "a2dp_avrcp";
-      ESP_LOGW(TAG, "AVRCP CT not connected — passthrough ignored");
-      return;
-    }
-    uint8_t tl = this->parent_->avrc_ct_tl_;
-    this->parent_->avrc_ct_tl_ = (this->parent_->avrc_ct_tl_ + 2) % 15;
-    esp_avrc_ct_send_passthrough_cmd(tl, key_code, ESP_AVRC_PT_CMD_STATE_PRESSED);
-  }
+  uint8_t get_volume() const { return this->parent_->get_avrcp_volume(); }
 
   CallbackManager<void(uint8_t)> volume_callback_;
 };
