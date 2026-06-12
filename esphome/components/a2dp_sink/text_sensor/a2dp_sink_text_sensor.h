@@ -7,6 +7,7 @@
 #include "esphome/components/a2dp_sink/a2dp_sink.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/core/component.h"
+#include "esphome/core/log.h"
 
 namespace esphome::a2dp_sink {
 
@@ -26,7 +27,10 @@ class A2DPSinkTextSensor : public text_sensor::TextSensor,
     });
   }
 
-  void dump_config() override { LOG_TEXT_SENSOR("", "A2DP Sink Peer Name", this); }
+  void dump_config() override {
+    static const char *const TAG = "a2dp_sink.text_sensor";
+    LOG_TEXT_SENSOR("", "A2DP Sink Peer Name", this);
+  }
 
   float get_setup_priority() const override { return setup_priority::AFTER_BLUETOOTH; }
 };

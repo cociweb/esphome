@@ -7,6 +7,7 @@
 #include "esphome/components/a2dp_sink/a2dp_sink.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/core/component.h"
+#include "esphome/core/log.h"
 
 namespace esphome::a2dp_sink {
 
@@ -22,7 +23,10 @@ class A2DPSinkBinarySensor : public binary_sensor::BinarySensor,
     this->publish_state(this->parent_->is_connected());
   }
 
-  void dump_config() override { LOG_BINARY_SENSOR("", "A2DP Sink Connected", this); }
+  void dump_config() override {
+    static const char *const TAG = "a2dp_sink.binary_sensor";
+    LOG_BINARY_SENSOR("", "A2DP Sink Connected", this);
+  }
 
   float get_setup_priority() const override { return setup_priority::AFTER_BLUETOOTH; }
 };
