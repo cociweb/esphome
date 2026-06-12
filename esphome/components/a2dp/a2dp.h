@@ -20,10 +20,6 @@
 #include "esp_bt_main.h"
 #include "esp_gap_bt_api.h"
 
-#include <atomic>
-#include <memory>
-#include <string>
-
 namespace esphome::a2dp {
 
 /// @brief Internal event types posted from BT callbacks to the main loop.
@@ -92,10 +88,10 @@ class A2DP : public Component {
   bool is_enabled() const { return this->enabled_; }
   bool is_connected() const { return this->connected_; }
   bool is_discoverable() const { return this->discoverable_; }
-  const std::string &get_peer_name() const { return this->peer_name_; }
+  const char *get_peer_name() const { return this->peer_name_; }
 
   /// @brief Return raw ring buffer pointer for use by media source tasks.
-  ring_buffer::RingBuffer *get_ring_buffer() { return this->ring_buffer_.get(); }
+  ring_buffer::RingBuffer *get_ring_buffer() { return this->ring_buffer_; }
 
   // --- Callback registration ---
 
@@ -190,7 +186,7 @@ class A2DP : public Component {
   bool audio_streaming_{false};
   bool discoverable_{false};
   uint32_t discoverable_started_at_{0};
-  std::string peer_name_;
+  char peer_name_[64]{};  ///< Last connected device name (truncated to 63 chars)
 #ifdef USE_A2DP_AVRCP
   uint8_t avrcp_volume_{127};
   bool avrcp_ct_connected_{false};
@@ -202,11 +198,11 @@ class A2DP : public Component {
   static constexpr uint8_t EVENT_QUEUE_LEN = 8;
 
   // --- Ring buffer ---
-  std::unique_ptr<ring_buffer::RingBuffer> ring_buffer_;
+  ring_buffer::RingBuffer *ring_buffer_{nullptr};
 
   // --- Callbacks (consumed by subcomponents) ---
   LazyCallbackManager<void(bool)> connection_callback_;
-  LazyCallbackManager<void(const std::string &)> peer_name_callback_;
+  LazyCallbackManager<void(const char *)> peer_name_callback_;
   LazyCallbackManager<void(bool)> audio_state_callback_;
   LazyCallbackManager<void(uint16_t, uint8_t)> audio_cfg_callback_;  ///< sample_rate, channels
 #ifdef USE_A2DP_AVRCP

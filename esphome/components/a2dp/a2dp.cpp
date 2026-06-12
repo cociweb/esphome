@@ -3,6 +3,8 @@
 #if defined(USE_ESP32) && defined(USE_A2DP)
 
 #include "esphome/core/log.h"
+#include <cstring>
+#include <memory>
 
 #if defined(CONFIG_BTDM_CONTROLLER_MODEM_SLEEP_EXT_WAKEUP) || defined(CONFIG_BTDM_COEX_SUPPORT)
 #include "esp_coexist.h"
@@ -64,7 +66,7 @@ void A2DP::setup() {
 
   auto pref = this->use_psram_ ? ring_buffer::RingBuffer::MemoryPreference::EXTERNAL_FIRST
                                 : ring_buffer::RingBuffer::MemoryPreference::INTERNAL_FIRST;
-  this->ring_buffer_ = ring_buffer::RingBuffer::create(this->ring_buffer_size_, pref);
+  this->ring_buffer_ = ring_buffer::RingBuffer::create(this->ring_buffer_size_, pref).release();
   if (this->ring_buffer_ == nullptr) {
     ESP_LOGE(TAG, "Failed to allocate ring buffer (%u bytes)", (unsigned) this->ring_buffer_size_);
     this->mark_failed();
@@ -143,8 +145,9 @@ void A2DP::loop() {
         break;
 
       case A2DPEvent::PEER_NAME_UPDATED:
-        this->peer_name_ = ev.peer_name;
-        ESP_LOGI(TAG, "BT peer name: %s", ev.peer_name);
+        strncpy(this->peer_name_, ev.peer_name, sizeof(this->peer_name_) - 1);
+        this->peer_name_[sizeof(this->peer_name_) - 1] = '\0';
+        ESP_LOGI(TAG, "BT peer name: %s", this->peer_name_);
         this->peer_name_callback_.call(this->peer_name_);
         break;
 
@@ -221,7 +224,8 @@ void A2DP::disable() {
   if (this->software_coexistence_)
     this->set_coex_preference_(false);
 #endif
-  this->ring_buffer_->reset();
+  if (this->ring_buffer_ != nullptr)
+    this->ring_buffer_->reset();
   ESP_LOGI(TAG, "A2DP hub disabled");
 }
 

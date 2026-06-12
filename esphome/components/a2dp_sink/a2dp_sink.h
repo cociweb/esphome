@@ -10,7 +10,6 @@
 #include "esphome/components/a2dp/a2dp.h"
 
 #include <atomic>
-#include <string>
 
 namespace esphome::a2dp_sink {
 

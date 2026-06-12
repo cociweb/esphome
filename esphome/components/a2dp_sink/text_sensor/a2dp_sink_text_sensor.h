@@ -18,7 +18,7 @@ class A2DPSinkTextSensor : public text_sensor::TextSensor,
                            public Parented<A2DPSink> {
  public:
   void setup() override {
-    this->parent_->get_parent()->add_on_peer_name_callback([this](const std::string &name) {
+    this->parent_->get_parent()->add_on_peer_name_callback([this](const char *name) {
       this->publish_state(name);
     });
     this->parent_->get_parent()->add_on_connection_callback([this](bool connected) {
