@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../a2dp-idf"
+		},
+		{
+			"path": "../a2dp-sample"
+		}
+	]
+}

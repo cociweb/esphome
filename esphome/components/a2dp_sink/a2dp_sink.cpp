@@ -371,20 +371,17 @@ void A2DPSink::handle_a2d_event_(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *p
 
     case ESP_A2D_AUDIO_CFG_EVT: {
       if (param->audio_cfg.mcc.type == ESP_A2D_MCT_SBC) {
-        auto &sbc = param->audio_cfg.mcc.cie.sbc;
-        // Decode SBC sample frequency field (bits 6:4 of octet 0)
+        auto &sbc = param->audio_cfg.mcc.cie.sbc_info;
+        // Decode SBC sample frequency (4-bit field: 0=16000, 1=32000, 2=44100, 3=48000)
         static const uint16_t sbc_rates[] = {16000, 32000, 44100, 48000};
-        uint8_t freq_idx = (sbc.samp_freq >> 4) & 0x0F;
-        // Find the highest-bit set (rates ordered MSB first in the spec)
-        for (int i = 0; i < 4; i++) {
-          if (freq_idx & (0x08 >> i)) {
-            ev.sample_rate = sbc_rates[i];
-            break;
-          }
-        }
-        if (ev.sample_rate == 0)
+        uint8_t freq_idx = sbc.samp_freq;
+        if (freq_idx < 4) {
+          ev.sample_rate = sbc_rates[freq_idx];
+        } else {
           ev.sample_rate = 44100;
-        ev.channels = (sbc.ch_mode == 0) ? 1 : 2;  // 0 = MONO
+        }
+        // Decode channel mode (4-bit field: 0=MONO, 1=DUAL, 2=STEREO, 3=JOINT)
+        ev.channels = (sbc.ch_mode == 0) ? 1 : 2;
         ev.type = A2DPEvent::AUDIO_CFG_UPDATED;
         // actual_sample_rate_ / actual_channels_ are updated atomically in loop()
         // after the event is dequeued, so the reader task always sees a consistent value.
@@ -415,7 +412,7 @@ void A2DPSink::handle_audio_data_(const uint8_t *data, uint32_t len) {
 void A2DPSink::handle_avrc_tg_event_(esp_avrc_tg_cb_event_t event, esp_avrc_tg_cb_param_t *param) {
   switch (event) {
     case ESP_AVRC_TG_SET_ABSOLUTE_VOLUME_CMD_EVT: {
-      uint8_t vol = param->set_abs_vol.abs_vol;
+      uint8_t vol = param->set_abs_vol.volume;
       // Acknowledge immediately from BT task (required by spec)
       esp_avrc_rn_param_t rn_param;
       rn_param.volume = vol;
