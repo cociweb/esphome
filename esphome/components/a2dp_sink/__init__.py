@@ -7,6 +7,7 @@ from esphome.core import ID
 from esphome.cpp_generator import TemplateArgsType
 from esphome.types import ConfigType
 
+AUTO_LOAD = ["a2dp"]
 CODEOWNERS = ["@cociweb"]
 DEPENDENCIES = ["a2dp"]
 DOMAIN = "a2dp_sink"

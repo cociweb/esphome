@@ -47,7 +47,7 @@ void A2DPSinkMediaSource::setup() {
     }
   });
 
-  this->parent_->add_on_connection_callback([this](bool connected) {
+  this->parent_->get_parent()->add_on_connection_callback([this](bool connected) {
     if (!connected && this->get_state() != media_source::MediaSourceState::IDLE) {
       xEventGroupSetBits(this->event_group_, EVT_CMD_DRAIN);
     }
@@ -94,8 +94,8 @@ bool A2DPSinkMediaSource::play_uri(const std::string &uri) {
     ESP_LOGD(TAG, "play_uri: already playing");
     return true;
   }
-  if (!this->parent_->is_enabled()) {
-    ESP_LOGW(TAG, "play_uri: a2dp_sink is not enabled");
+  if (!this->parent_->get_parent()->is_enabled()) {
+    ESP_LOGW(TAG, "play_uri: a2dp hub is not enabled");
     return false;
   }
 
