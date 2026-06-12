@@ -205,6 +205,7 @@ void A2DP::enable() {
   }
   this->enabled_ = true;
   ESP_LOGI(TAG, "A2DP hub enabled — waiting for connection");
+  this->start_discovery_();
 #ifdef USE_SOFTWARE_COEXISTENCE
   if (this->software_coexistence_ && this->prefer_bt_while_discoverable_)
     this->set_coex_preference_(true);
