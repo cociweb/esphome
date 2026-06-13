@@ -128,6 +128,5 @@ async def to_code(config: ConfigType) -> None:
     add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_MODE_BR_EDR_ONLY", True)
     add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_MODE_BLE_ONLY", False)
     add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_MODE_BTDM", False)
-    add_idf_sdkconfig_option("CONFIG_BT_BLE_ENABLED", False)
 
     cg.add_define("USE_A2DP")

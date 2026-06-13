@@ -294,8 +294,22 @@ bool A2DP::init_bt_() {
     return false;
   }
 
+#ifdef USE_A2DP_AVRCP
+  esp_avrc_ct_register_callback(s_avrc_ct_callback_);
+  ret = esp_avrc_ct_init();
+  if (ret != ESP_OK) {
+    ESP_LOGW(TAG, "esp_avrc_ct_init failed: %s (CT transport control unavailable)", esp_err_to_name(ret));
+  }
+
+  esp_avrc_tg_register_callback(s_avrc_tg_callback_);
+  ret = esp_avrc_tg_init();
+  if (ret != ESP_OK) {
+    ESP_LOGE(TAG, "esp_avrc_tg_init failed: %s", esp_err_to_name(ret));
+    return false;
+  }
+#endif
+
   esp_a2d_register_callback(s_a2d_callback_);
-  esp_a2d_sink_register_data_callback(s_a2d_data_callback_);
 
   ret = esp_a2d_sink_init();
   if (ret != ESP_OK) {
@@ -303,20 +317,7 @@ bool A2DP::init_bt_() {
     return false;
   }
 
-#ifdef USE_A2DP_AVRCP
-  esp_avrc_tg_register_callback(s_avrc_tg_callback_);
-  ret = esp_avrc_tg_init();
-  if (ret != ESP_OK) {
-    ESP_LOGE(TAG, "esp_avrc_tg_init failed: %s", esp_err_to_name(ret));
-    return false;
-  }
-
-  esp_avrc_ct_register_callback(s_avrc_ct_callback_);
-  ret = esp_avrc_ct_init();
-  if (ret != ESP_OK) {
-    ESP_LOGW(TAG, "esp_avrc_ct_init failed: %s (CT transport control unavailable)", esp_err_to_name(ret));
-  }
-#endif
+  esp_a2d_sink_register_data_callback(s_a2d_data_callback_);
 
   return true;
 }
