@@ -41,7 +41,14 @@ enum class A2DPEvent : uint8_t {
 struct A2DPEventRecord {
   A2DPEvent type;
   uint16_t sample_rate;
+  uint32_t bitrate;
   uint8_t channels;
+  uint8_t channel_mode;
+  uint8_t block_length;
+  uint8_t subbands;
+  uint8_t allocation_method;
+  uint8_t min_bitpool;
+  uint8_t max_bitpool;
   uint8_t volume;  ///< AVRCP_VOLUME_CHANGED: 0-127
   char peer_name[ESP_BT_GAP_MAX_BDNAME_LEN + 1];
 };

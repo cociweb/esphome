@@ -17,6 +17,78 @@ namespace esphome::a2dp {
 
 A2DP *global_a2dp = nullptr;
 
+static uint16_t sbc_sample_rate_(uint8_t samp_freq) {
+  if (samp_freq & 0x80)
+    return 16000;
+  if (samp_freq & 0x40)
+    return 32000;
+  if (samp_freq & 0x20)
+    return 44100;
+  if (samp_freq & 0x10)
+    return 48000;
+  return 0;
+}
+
+static uint8_t sbc_channels_(uint8_t ch_mode) {
+  return (ch_mode & 0x08) ? 1 : 2;
+}
+
+static const char *sbc_channel_mode_name_(uint8_t ch_mode) {
+  if (ch_mode & 0x08)
+    return "mono";
+  if (ch_mode & 0x04)
+    return "dual_channel";
+  if (ch_mode & 0x02)
+    return "stereo";
+  if (ch_mode & 0x01)
+    return "joint_stereo";
+  return "unknown";
+}
+
+static uint8_t sbc_block_length_(uint8_t block_len) {
+  if (block_len & 0x08)
+    return 4;
+  if (block_len & 0x04)
+    return 8;
+  if (block_len & 0x02)
+    return 12;
+  if (block_len & 0x01)
+    return 16;
+  return 0;
+}
+
+static uint8_t sbc_subbands_(uint8_t num_subbands) {
+  if (num_subbands & 0x02)
+    return 4;
+  if (num_subbands & 0x01)
+    return 8;
+  return 0;
+}
+
+static const char *sbc_allocation_name_(uint8_t alloc_mthd) {
+  if (alloc_mthd & 0x02)
+    return "snr";
+  if (alloc_mthd & 0x01)
+    return "loudness";
+  return "unknown";
+}
+
+static uint32_t sbc_bitrate_(uint16_t sample_rate, uint8_t channels, uint8_t channel_mode, uint8_t blocks,
+                             uint8_t subbands, uint8_t bitpool) {
+  if (sample_rate == 0 || channels == 0 || blocks == 0 || subbands == 0 || bitpool == 0)
+    return 0;
+  uint16_t frame_bits = 32 + 4 * subbands * channels;
+  if (channel_mode & 0x01) {
+    frame_bits += subbands + blocks * bitpool;
+  } else if ((channel_mode & 0x08) || (channel_mode & 0x02)) {
+    frame_bits += blocks * bitpool;
+  } else {
+    frame_bits += blocks * bitpool * channels;
+  }
+  uint32_t frame_len = 4 + ((frame_bits + 7) / 8);
+  return (8 * frame_len * sample_rate) / (subbands * blocks);
+}
+
 // ---------------------------------------------------------------------------
 // ESP-IDF static callbacks
 // ---------------------------------------------------------------------------
@@ -140,7 +212,12 @@ void A2DP::loop() {
         break;
 
       case A2DPEvent::AUDIO_CFG_UPDATED:
-        ESP_LOGI(TAG, "A2DP audio config: %u Hz, %u ch", (unsigned) ev.sample_rate, (unsigned) ev.channels);
+        ESP_LOGI(TAG,
+                 "A2DP audio config: SBC, %u Hz, %u ch, %s, %u blocks, %u subbands, %s, bitpool %u-%u, "
+                 "estimated max bitrate %u bps",
+                 (unsigned) ev.sample_rate, (unsigned) ev.channels, sbc_channel_mode_name_(ev.channel_mode),
+                 (unsigned) ev.block_length, (unsigned) ev.subbands, sbc_allocation_name_(ev.allocation_method),
+                 (unsigned) ev.min_bitpool, (unsigned) ev.max_bitpool, (unsigned) ev.bitrate);
         this->audio_cfg_callback_.call(ev.sample_rate, ev.channels);
         break;
 
@@ -417,10 +494,16 @@ void A2DP::handle_a2d_event_(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param
     case ESP_A2D_AUDIO_CFG_EVT: {
       if (param->audio_cfg.mcc.type == ESP_A2D_MCT_SBC) {
         auto &sbc = param->audio_cfg.mcc.cie.sbc_info;
-        static const uint16_t sbc_rates[] = {16000, 32000, 44100, 48000};
-        uint8_t freq_idx = sbc.samp_freq;
-        ev.sample_rate = (freq_idx < 4) ? sbc_rates[freq_idx] : 44100;
-        ev.channels = (sbc.ch_mode == 0) ? 1 : 2;
+        ev.sample_rate = sbc_sample_rate_(sbc.samp_freq);
+        ev.channels = sbc_channels_(sbc.ch_mode);
+        ev.channel_mode = sbc.ch_mode;
+        ev.block_length = sbc_block_length_(sbc.block_len);
+        ev.subbands = sbc_subbands_(sbc.num_subbands);
+        ev.allocation_method = sbc.alloc_mthd;
+        ev.min_bitpool = sbc.min_bitpool;
+        ev.max_bitpool = sbc.max_bitpool;
+        ev.bitrate = sbc_bitrate_(ev.sample_rate, ev.channels, ev.channel_mode, ev.block_length, ev.subbands,
+                                  ev.max_bitpool);
         ev.type = A2DPEvent::AUDIO_CFG_UPDATED;
         xQueueSend(this->event_queue_, &ev, 0);
       }
