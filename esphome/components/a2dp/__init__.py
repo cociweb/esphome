@@ -18,6 +18,8 @@ CONF_AUTO_START = "auto_start"
 CONF_RING_BUFFER_SIZE = "ring_buffer_size"
 CONF_USE_PSRAM = "use_psram"
 CONF_DISCOVERABLE_DURATION = "discoverable_duration"
+CONF_PREFERRED_SAMPLE_RATE = "preferred_sample_rate"
+CONF_PREFERRED_BITS_PER_SAMPLE = "preferred_bits_per_sample"
 CONF_COEXISTENCE = "coexistence"
 CONF_SOFTWARE_COEXISTENCE = "software_coexistence"
 CONF_PREFER_BT_WHILE_STREAMING = "prefer_bt_while_streaming"
@@ -33,6 +35,11 @@ BLE_COMPONENTS = {
     "esp32_ble_beacon",
 }
 ble_required = False
+
+SAMPLE_RATE_BUILD_FLAGS = {
+    44100: "A2D_SBC_IE_SAMP_FREQ_44",
+    48000: "A2D_SBC_IE_SAMP_FREQ_48",
+}
 
 a2dp_ns = cg.esphome_ns.namespace("a2dp")
 A2DP = a2dp_ns.class_("A2DP", cg.Component)
@@ -73,6 +80,12 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_USE_PSRAM, default=False): cv.boolean,
             cv.Optional(CONF_DISCOVERABLE_DURATION): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_PREFERRED_SAMPLE_RATE, default="auto"): cv.Any(
+                "auto", cv.one_of(44100, 48000, int=True)
+            ),
+            cv.Optional(CONF_PREFERRED_BITS_PER_SAMPLE, default=16): cv.one_of(
+                16, 32, int=True
+            ),
             cv.Optional(CONF_COEXISTENCE): COEXISTENCE_SCHEMA,
         }
     ).extend(cv.COMPONENT_SCHEMA),
@@ -131,6 +144,11 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_auto_start(config[CONF_AUTO_START]))
     cg.add(var.set_ring_buffer_size(config[CONF_RING_BUFFER_SIZE]))
     cg.add(var.set_use_psram(config[CONF_USE_PSRAM]))
+    cg.add(var.set_preferred_bits_per_sample(config[CONF_PREFERRED_BITS_PER_SAMPLE]))
+    if config[CONF_PREFERRED_SAMPLE_RATE] != "auto":
+        cg.add_build_flag(
+            f"-DBTC_AV_SBC_DEFAULT_SAMP_FREQ={SAMPLE_RATE_BUILD_FLAGS[config[CONF_PREFERRED_SAMPLE_RATE]]}"
+        )
     if CONF_DISCOVERABLE_DURATION in config:
         cg.add(var.set_discoverable_duration_ms(config[CONF_DISCOVERABLE_DURATION].total_milliseconds))
 

@@ -43,6 +43,7 @@ struct A2DPEventRecord {
   uint16_t sample_rate;
   uint32_t bitrate;
   uint8_t channels;
+  uint8_t bits_per_sample;
   uint8_t channel_mode;
   uint8_t block_length;
   uint8_t subbands;
@@ -77,6 +78,9 @@ class A2DP : public Component {
   void set_use_psram(bool use_psram) { this->use_psram_ = use_psram; }
   void set_auto_start(bool auto_start) { this->auto_start_ = auto_start; }
   void set_discoverable_duration_ms(uint32_t ms) { this->discoverable_duration_ms_ = ms; }
+  void set_preferred_bits_per_sample(uint8_t bits_per_sample) {
+    this->preferred_bits_per_sample_ = bits_per_sample;
+  }
 
 #ifdef USE_SOFTWARE_COEXISTENCE
   void set_software_coexistence(bool v) { this->software_coexistence_ = v; }
@@ -180,6 +184,7 @@ class A2DP : public Component {
   bool use_psram_{false};
   bool auto_start_{false};
   uint32_t discoverable_duration_ms_{0};
+  uint8_t preferred_bits_per_sample_{16};
 
 #ifdef USE_SOFTWARE_COEXISTENCE
   bool software_coexistence_{false};

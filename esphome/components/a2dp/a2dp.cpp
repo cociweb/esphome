@@ -18,6 +18,10 @@ namespace esphome::a2dp {
 A2DP *global_a2dp = nullptr;
 
 static uint16_t sbc_sample_rate_(uint8_t samp_freq) {
+  if (samp_freq <= 3) {
+    static constexpr uint16_t rates[] = {16000, 32000, 44100, 48000};
+    return rates[samp_freq];
+  }
   if (samp_freq & 0x80)
     return 16000;
   if (samp_freq & 0x40)
@@ -213,11 +217,12 @@ void A2DP::loop() {
 
       case A2DPEvent::AUDIO_CFG_UPDATED:
         ESP_LOGI(TAG,
-                 "A2DP audio config: SBC, %u Hz, %u ch, %s, %u blocks, %u subbands, %s, bitpool %u-%u, "
+                 "A2DP audio config: SBC, %u Hz, %u-bit, %u ch, %s, %u blocks, %u subbands, %s, bitpool %u-%u, "
                  "estimated max bitrate %u bps",
-                 (unsigned) ev.sample_rate, (unsigned) ev.channels, sbc_channel_mode_name_(ev.channel_mode),
-                 (unsigned) ev.block_length, (unsigned) ev.subbands, sbc_allocation_name_(ev.allocation_method),
-                 (unsigned) ev.min_bitpool, (unsigned) ev.max_bitpool, (unsigned) ev.bitrate);
+                 (unsigned) ev.sample_rate, (unsigned) ev.bits_per_sample, (unsigned) ev.channels,
+                 sbc_channel_mode_name_(ev.channel_mode), (unsigned) ev.block_length, (unsigned) ev.subbands,
+                 sbc_allocation_name_(ev.allocation_method), (unsigned) ev.min_bitpool, (unsigned) ev.max_bitpool,
+                 (unsigned) ev.bitrate);
         this->audio_cfg_callback_.call(ev.sample_rate, ev.channels);
         break;
 
@@ -260,6 +265,7 @@ void A2DP::dump_config() {
   ESP_LOGCONFIG(TAG, "  Ring Buffer:   %u bytes (%s)", (unsigned) this->ring_buffer_size_,
                 this->use_psram_ ? "PSRAM" : "internal");
   ESP_LOGCONFIG(TAG, "  Auto Start:    %s", this->auto_start_ ? "yes" : "no");
+  ESP_LOGCONFIG(TAG, "  Preferred PCM: %u-bit", (unsigned) this->preferred_bits_per_sample_);
 #ifdef USE_SOFTWARE_COEXISTENCE
   if (this->software_coexistence_) {
     ESP_LOGCONFIG(TAG, "  Coexistence:   software");
@@ -496,6 +502,7 @@ void A2DP::handle_a2d_event_(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param
         auto &sbc = param->audio_cfg.mcc.cie.sbc_info;
         ev.sample_rate = sbc_sample_rate_(sbc.samp_freq);
         ev.channels = sbc_channels_(sbc.ch_mode);
+        ev.bits_per_sample = 16;
         ev.channel_mode = sbc.ch_mode;
         ev.block_length = sbc_block_length_(sbc.block_len);
         ev.subbands = sbc_subbands_(sbc.num_subbands);
