@@ -195,6 +195,8 @@ class A2DP : public Component {
   ESPPreferenceObject peer_pref_;
   esp_bd_addr_t last_peer_bda_{};
   bool has_last_peer_{false};
+  uint32_t reconnect_at_{0};
+  uint8_t reconnect_attempts_{0};
 
 #ifdef USE_SOFTWARE_COEXISTENCE
   bool software_coexistence_{false};

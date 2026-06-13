@@ -23,6 +23,9 @@ struct SavedPeer {
 };
 
 static constexpr uint32_t A2DP_PEER_PREF_HASH = 0xA2D90001UL;
+static constexpr uint32_t RECONNECT_INITIAL_DELAY_MS = 1000;
+static constexpr uint32_t RECONNECT_RETRY_DELAY_MS = 1000;
+static constexpr uint8_t RECONNECT_MAX_ATTEMPTS = 5;
 
 static void format_bda_(const esp_bd_addr_t bda, char *buf, size_t len) {
   snprintf(buf, len, "%02X:%02X:%02X:%02X:%02X:%02X", bda[0], bda[1], bda[2], bda[3], bda[4], bda[5]);
@@ -178,12 +181,18 @@ void A2DP::loop() {
     this->stop_discovery_();
   }
 
+  if (this->enabled_ && !this->connected_ && this->reconnect_at_ != 0 && millis() >= this->reconnect_at_) {
+    this->reconnect_to_last_peer_();
+  }
+
   A2DPEventRecord ev;
   while (xQueueReceive(this->event_queue_, &ev, 0) == pdTRUE) {
     switch (ev.type) {
       case A2DPEvent::CONNECTED:
         if (!this->connected_) {
           this->connected_ = true;
+          this->reconnect_at_ = 0;
+          this->reconnect_attempts_ = 0;
           this->save_peer_(ev.remote_bda);
           this->stop_discovery_();
           ESP_LOGI(TAG, "BT connected");
@@ -309,7 +318,8 @@ void A2DP::enable() {
   this->enabled_ = true;
   ESP_LOGI(TAG, "A2DP hub enabled — waiting for connection");
   if (this->auto_reconnect_ && this->has_last_peer_) {
-    this->reconnect_to_last_peer_();
+    this->reconnect_attempts_ = 0;
+    this->reconnect_at_ = millis() + RECONNECT_INITIAL_DELAY_MS;
   }
   this->start_discovery_();
 #ifdef USE_SOFTWARE_COEXISTENCE
@@ -327,6 +337,8 @@ void A2DP::disable() {
   this->enabled_ = false;
   this->connected_ = false;
   this->audio_streaming_ = false;
+  this->reconnect_at_ = 0;
+  this->reconnect_attempts_ = 0;
 #ifdef USE_SOFTWARE_COEXISTENCE
   if (this->software_coexistence_)
     this->set_coex_preference_(false);
@@ -473,11 +485,16 @@ void A2DP::stop_discovery_() {
 }
 
 void A2DP::reconnect_to_last_peer_() {
+  this->reconnect_at_ = 0;
+  this->reconnect_attempts_++;
   char bda[18];
   format_bda_(this->last_peer_bda_, bda, sizeof(bda));
   esp_err_t ret = esp_a2d_sink_connect(this->last_peer_bda_);
   if (ret != ESP_OK) {
     ESP_LOGW(TAG, "Reconnect to %s failed to start: %s", bda, esp_err_to_name(ret));
+    if (ret == ESP_ERR_INVALID_STATE && this->reconnect_attempts_ < RECONNECT_MAX_ATTEMPTS) {
+      this->reconnect_at_ = millis() + RECONNECT_RETRY_DELAY_MS;
+    }
     return;
   }
   ESP_LOGI(TAG, "Reconnect to last A2DP source requested: %s", bda);
