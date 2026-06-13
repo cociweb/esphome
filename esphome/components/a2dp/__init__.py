@@ -24,6 +24,16 @@ CONF_PREFER_BT_WHILE_STREAMING = "prefer_bt_while_streaming"
 CONF_PREFER_BT_WHILE_DISCOVERABLE = "prefer_bt_while_discoverable"
 CONF_PAUSE_WIFI_SOURCES_ON_CONNECT = "pause_wifi_sources_on_connect"
 
+BLE_COMPONENTS = {
+    "bluetooth_proxy",
+    "esp32_ble",
+    "esp32_ble_tracker",
+    "esp32_ble_client",
+    "esp32_ble_server",
+    "esp32_ble_beacon",
+}
+ble_required = False
+
 a2dp_ns = cg.esphome_ns.namespace("a2dp")
 A2DP = a2dp_ns.class_("A2DP", cg.Component)
 
@@ -68,6 +78,16 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on_esp32,
 )
+
+
+def final_validate(config):
+    global ble_required
+    full_config = fv.full_config.get()
+    ble_required = any(component in full_config for component in BLE_COMPONENTS)
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = final_validate
 
 A2DP_ACTION_SCHEMA = automation.maybe_simple_id(
     cv.Schema({cv.GenerateID(): cv.use_id(A2DP)})
@@ -126,18 +146,6 @@ async def to_code(config: ConfigType) -> None:
     add_idf_sdkconfig_option("CONFIG_BT_A2DP_ENABLE", True)
     add_idf_sdkconfig_option("CONFIG_BT_AVRC_TG_ENABLE", True)
     add_idf_sdkconfig_option("CONFIG_BT_AVRC_CT_ENABLE", True)
-    full_config = fv.full_config.get()
-    ble_required = any(
-        component in full_config
-        for component in (
-            "bluetooth_proxy",
-            "esp32_ble",
-            "esp32_ble_tracker",
-            "esp32_ble_client",
-            "esp32_ble_server",
-            "esp32_ble_beacon",
-        )
-    )
     add_idf_sdkconfig_option("CONFIG_BT_BLE_ENABLED", ble_required)
     add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_MODE_BR_EDR_ONLY", not ble_required)
     add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_MODE_BLE_ONLY", False)
