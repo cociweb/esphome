@@ -17,6 +17,17 @@ namespace esphome::a2dp {
 
 A2DP *global_a2dp = nullptr;
 
+struct SavedPeer {
+  uint8_t valid;
+  esp_bd_addr_t bda;
+};
+
+static constexpr uint32_t A2DP_PEER_PREF_HASH = 0xA2D90001UL;
+
+static void format_bda_(const esp_bd_addr_t bda, char *buf, size_t len) {
+  snprintf(buf, len, "%02X:%02X:%02X:%02X:%02X:%02X", bda[0], bda[1], bda[2], bda[3], bda[4], bda[5]);
+}
+
 static uint16_t sbc_sample_rate_(uint8_t samp_freq) {
   if (samp_freq <= 3) {
     static constexpr uint16_t rates[] = {16000, 32000, 44100, 48000};
@@ -149,6 +160,13 @@ void A2DP::setup() {
     return;
   }
 
+  this->peer_pref_ = global_preferences->make_preference<SavedPeer>(A2DP_PEER_PREF_HASH, true);
+  SavedPeer saved_peer{};
+  if (this->peer_pref_.load(&saved_peer) && saved_peer.valid == 1) {
+    memcpy(this->last_peer_bda_, saved_peer.bda, sizeof(this->last_peer_bda_));
+    this->has_last_peer_ = true;
+  }
+
   if (this->auto_start_) {
     this->enable();
   }
@@ -166,6 +184,7 @@ void A2DP::loop() {
       case A2DPEvent::CONNECTED:
         if (!this->connected_) {
           this->connected_ = true;
+          this->save_peer_(ev.remote_bda);
           this->stop_discovery_();
           ESP_LOGI(TAG, "BT connected");
 #ifdef USE_SOFTWARE_COEXISTENCE
@@ -265,6 +284,7 @@ void A2DP::dump_config() {
   ESP_LOGCONFIG(TAG, "  Ring Buffer:   %u bytes (%s)", (unsigned) this->ring_buffer_size_,
                 this->use_psram_ ? "PSRAM" : "internal");
   ESP_LOGCONFIG(TAG, "  Auto Start:    %s", this->auto_start_ ? "yes" : "no");
+  ESP_LOGCONFIG(TAG, "  Reconnect:     %s", this->auto_reconnect_ ? "yes" : "no");
   ESP_LOGCONFIG(TAG, "  Preferred PCM: %u-bit", (unsigned) this->preferred_bits_per_sample_);
 #ifdef USE_SOFTWARE_COEXISTENCE
   if (this->software_coexistence_) {
@@ -288,6 +308,9 @@ void A2DP::enable() {
   }
   this->enabled_ = true;
   ESP_LOGI(TAG, "A2DP hub enabled — waiting for connection");
+  if (this->auto_reconnect_ && this->has_last_peer_) {
+    this->reconnect_to_last_peer_();
+  }
   this->start_discovery_();
 #ifdef USE_SOFTWARE_COEXISTENCE
   if (this->software_coexistence_ && this->prefer_bt_while_discoverable_)
@@ -449,6 +472,28 @@ void A2DP::stop_discovery_() {
   ESP_LOGI(TAG, "BT discovery stopped");
 }
 
+void A2DP::reconnect_to_last_peer_() {
+  char bda[18];
+  format_bda_(this->last_peer_bda_, bda, sizeof(bda));
+  esp_err_t ret = esp_a2d_sink_connect(this->last_peer_bda_);
+  if (ret != ESP_OK) {
+    ESP_LOGW(TAG, "Reconnect to %s failed to start: %s", bda, esp_err_to_name(ret));
+    return;
+  }
+  ESP_LOGI(TAG, "Reconnect to last A2DP source requested: %s", bda);
+}
+
+void A2DP::save_peer_(const esp_bd_addr_t remote_bda) {
+  memcpy(this->last_peer_bda_, remote_bda, sizeof(this->last_peer_bda_));
+  this->has_last_peer_ = true;
+  SavedPeer saved_peer{};
+  saved_peer.valid = 1;
+  memcpy(saved_peer.bda, remote_bda, sizeof(saved_peer.bda));
+  if (this->peer_pref_.save(&saved_peer)) {
+    global_preferences->sync();
+  }
+}
+
 // ---------------------------------------------------------------------------
 // WiFi/BT coexistence
 // ---------------------------------------------------------------------------
@@ -475,6 +520,7 @@ void A2DP::handle_a2d_event_(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param
       auto state = param->conn_stat.state;
       if (state == ESP_A2D_CONNECTION_STATE_CONNECTED) {
         ev.type = A2DPEvent::CONNECTED;
+        memcpy(ev.remote_bda, param->conn_stat.remote_bda, sizeof(ev.remote_bda));
         esp_bt_gap_read_remote_name(param->conn_stat.remote_bda);
         xQueueSend(this->event_queue_, &ev, 0);
       } else if (state == ESP_A2D_CONNECTION_STATE_DISCONNECTED) {

@@ -20,6 +20,7 @@ A2DPAVRCP = a2dp_ns.class_(
 
 A2DPAVRCPPlayAction       = a2dp_ns.class_("A2DPAVRCPPlayAction",       automation.Action)
 A2DPAVRCPPauseAction      = a2dp_ns.class_("A2DPAVRCPPauseAction",      automation.Action)
+A2DPAVRCPPlayPauseAction  = a2dp_ns.class_("A2DPAVRCPPlayPauseAction",  automation.Action)
 A2DPAVRCPNextAction       = a2dp_ns.class_("A2DPAVRCPNextAction",       automation.Action)
 A2DPAVRCPPreviousAction   = a2dp_ns.class_("A2DPAVRCPPreviousAction",   automation.Action)
 A2DPAVRCPStopAction       = a2dp_ns.class_("A2DPAVRCPStopAction",       automation.Action)
@@ -59,6 +60,12 @@ AVRCP_SIMPLE_ACTION_SCHEMA = automation.maybe_simple_id(
 @automation.register_action(
     "a2dp_avrcp.pause",
     A2DPAVRCPPauseAction,
+    AVRCP_SIMPLE_ACTION_SCHEMA,
+    synchronous=True,
+)
+@automation.register_action(
+    "a2dp_avrcp.play_pause",
+    A2DPAVRCPPlayPauseAction,
     AVRCP_SIMPLE_ACTION_SCHEMA,
     synchronous=True,
 )

@@ -8,6 +8,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/preferences.h"
 #include "esphome/components/ring_buffer/ring_buffer.h"
 
 #include "freertos/FreeRTOS.h"
@@ -51,6 +52,7 @@ struct A2DPEventRecord {
   uint8_t min_bitpool;
   uint8_t max_bitpool;
   uint8_t volume;  ///< AVRCP_VOLUME_CHANGED: 0-127
+  esp_bd_addr_t remote_bda;
   char peer_name[ESP_BT_GAP_MAX_BDNAME_LEN + 1];
 };
 
@@ -77,6 +79,7 @@ class A2DP : public Component {
   void set_ring_buffer_size(size_t size) { this->ring_buffer_size_ = size; }
   void set_use_psram(bool use_psram) { this->use_psram_ = use_psram; }
   void set_auto_start(bool auto_start) { this->auto_start_ = auto_start; }
+  void set_auto_reconnect(bool auto_reconnect) { this->auto_reconnect_ = auto_reconnect; }
   void set_discoverable_duration_ms(uint32_t ms) { this->discoverable_duration_ms_ = ms; }
   void set_preferred_bits_per_sample(uint8_t bits_per_sample) {
     this->preferred_bits_per_sample_ = bits_per_sample;
@@ -99,6 +102,7 @@ class A2DP : public Component {
 
   bool is_enabled() const { return this->enabled_; }
   bool is_connected() const { return this->connected_; }
+  bool is_audio_streaming() const { return this->audio_streaming_; }
   bool is_discoverable() const { return this->discoverable_; }
   const char *get_peer_name() const { return this->peer_name_; }
 
@@ -158,6 +162,8 @@ class A2DP : public Component {
   void deinit_bt_();
   void start_discovery_();
   void stop_discovery_();
+  void reconnect_to_last_peer_();
+  void save_peer_(const esp_bd_addr_t remote_bda);
   void set_coex_preference_(bool prefer_bt);
 
   // --- Static ESP-IDF callbacks ---
@@ -183,8 +189,12 @@ class A2DP : public Component {
   size_t ring_buffer_size_{131072};
   bool use_psram_{false};
   bool auto_start_{false};
+  bool auto_reconnect_{false};
   uint32_t discoverable_duration_ms_{0};
   uint8_t preferred_bits_per_sample_{16};
+  ESPPreferenceObject peer_pref_;
+  esp_bd_addr_t last_peer_bda_{};
+  bool has_last_peer_{false};
 
 #ifdef USE_SOFTWARE_COEXISTENCE
   bool software_coexistence_{false};

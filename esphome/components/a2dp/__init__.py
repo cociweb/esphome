@@ -15,6 +15,7 @@ AUTO_LOAD = ["ring_buffer"]
 CONF_A2DP_ID = "a2dp_id"
 CONF_DEVICE_NAME = "device_name"
 CONF_AUTO_START = "auto_start"
+CONF_AUTO_RECONNECT = "auto_reconnect"
 CONF_RING_BUFFER_SIZE = "ring_buffer_size"
 CONF_USE_PSRAM = "use_psram"
 CONF_DISCOVERABLE_DURATION = "discoverable_duration"
@@ -75,6 +76,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(A2DP),
             cv.Optional(CONF_DEVICE_NAME, default="ESPHome"): cv.string,
             cv.Optional(CONF_AUTO_START, default=False): cv.boolean,
+            cv.Optional(CONF_AUTO_RECONNECT, default=False): cv.boolean,
             cv.Optional(CONF_RING_BUFFER_SIZE, default=131072): cv.int_range(
                 min=16384, max=4194304
             ),
@@ -142,6 +144,7 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_device_name(config[CONF_DEVICE_NAME]))
     cg.add(var.set_auto_start(config[CONF_AUTO_START]))
+    cg.add(var.set_auto_reconnect(config[CONF_AUTO_RECONNECT]))
     cg.add(var.set_ring_buffer_size(config[CONF_RING_BUFFER_SIZE]))
     cg.add(var.set_use_psram(config[CONF_USE_PSRAM]))
     cg.add(var.set_preferred_bits_per_sample(config[CONF_PREFERRED_BITS_PER_SAMPLE]))

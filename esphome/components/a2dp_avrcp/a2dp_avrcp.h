@@ -43,6 +43,10 @@ class A2DPAVRCP : public Component, public Parented<A2DP> {
 
   void play()           { this->parent_->send_avrc_passthrough(ESP_AVRC_PT_CMD_PLAY); }
   void pause()          { this->parent_->send_avrc_passthrough(ESP_AVRC_PT_CMD_PAUSE); }
+  void play_pause() {
+    this->parent_->send_avrc_passthrough(
+        this->parent_->is_audio_streaming() ? ESP_AVRC_PT_CMD_PAUSE : ESP_AVRC_PT_CMD_PLAY);
+  }
   void next_track()     { this->parent_->send_avrc_passthrough(ESP_AVRC_PT_CMD_FORWARD); }
   void previous_track() { this->parent_->send_avrc_passthrough(ESP_AVRC_PT_CMD_BACKWARD); }
   void stop()           { this->parent_->send_avrc_passthrough(ESP_AVRC_PT_CMD_STOP); }
@@ -68,6 +72,12 @@ template<typename... Ts>
 class A2DPAVRCPPauseAction : public Action<Ts...>, public Parented<A2DPAVRCP> {
  public:
   void play(const Ts &...x) override { this->parent_->pause(); }
+};
+
+template<typename... Ts>
+class A2DPAVRCPPlayPauseAction : public Action<Ts...>, public Parented<A2DPAVRCP> {
+ public:
+  void play(const Ts &...x) override { this->parent_->play_pause(); }
 };
 
 template<typename... Ts>
