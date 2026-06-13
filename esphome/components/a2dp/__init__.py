@@ -5,6 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.core import ID
 from esphome.cpp_generator import TemplateArgsType
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@cociweb"]
@@ -125,8 +126,21 @@ async def to_code(config: ConfigType) -> None:
     add_idf_sdkconfig_option("CONFIG_BT_A2DP_ENABLE", True)
     add_idf_sdkconfig_option("CONFIG_BT_AVRC_TG_ENABLE", True)
     add_idf_sdkconfig_option("CONFIG_BT_AVRC_CT_ENABLE", True)
-    add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_MODE_BR_EDR_ONLY", True)
+    full_config = fv.full_config.get()
+    ble_required = any(
+        component in full_config
+        for component in (
+            "bluetooth_proxy",
+            "esp32_ble",
+            "esp32_ble_tracker",
+            "esp32_ble_client",
+            "esp32_ble_server",
+            "esp32_ble_beacon",
+        )
+    )
+    add_idf_sdkconfig_option("CONFIG_BT_BLE_ENABLED", ble_required)
+    add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_MODE_BR_EDR_ONLY", not ble_required)
     add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_MODE_BLE_ONLY", False)
-    add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_MODE_BTDM", False)
+    add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_MODE_BTDM", ble_required)
 
     cg.add_define("USE_A2DP")
