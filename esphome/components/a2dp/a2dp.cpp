@@ -283,8 +283,16 @@ bool A2DP::init_bt_() {
     }
   }
 
-  esp_bt_gap_register_callback(s_gap_callback_);
-  esp_bt_gap_set_device_name(this->device_name_);
+  ret = esp_bt_gap_register_callback(s_gap_callback_);
+  if (ret != ESP_OK) {
+    ESP_LOGE(TAG, "esp_bt_gap_register_callback failed: %s", esp_err_to_name(ret));
+    return false;
+  }
+  ret = esp_bt_gap_set_device_name(this->device_name_);
+  if (ret != ESP_OK) {
+    ESP_LOGE(TAG, "esp_bt_gap_set_device_name failed: %s", esp_err_to_name(ret));
+    return false;
+  }
 
   esp_a2d_register_callback(s_a2d_callback_);
   esp_a2d_sink_register_data_callback(s_a2d_data_callback_);
@@ -310,7 +318,6 @@ bool A2DP::init_bt_() {
   }
 #endif
 
-  this->start_discovery_();
   return true;
 }
 
@@ -336,7 +343,11 @@ void A2DP::deinit_bt_() {
 // ---------------------------------------------------------------------------
 
 void A2DP::start_discovery_() {
-  esp_bt_gap_set_scan_mode(ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE);
+  esp_err_t ret = esp_bt_gap_set_scan_mode(ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE);
+  if (ret != ESP_OK) {
+    ESP_LOGE(TAG, "esp_bt_gap_set_scan_mode(discoverable) failed: %s", esp_err_to_name(ret));
+    return;
+  }
   this->discoverable_ = true;
   this->discoverable_started_at_ = millis();
   if (this->discoverable_duration_ms_ > 0) {

@@ -220,19 +220,28 @@ extern A2DP *global_a2dp;
 template<typename... Ts>
 class A2DPEnableAction : public Action<Ts...>, public Parented<A2DP> {
  public:
-  void play(const Ts &...x) override { this->parent_->enable(); }
+  void play(const Ts &...x) override {
+    ESP_LOGI("a2dp", "a2dp.enable action");
+    this->parent_->enable();
+  }
 };
 
 template<typename... Ts>
 class A2DPDisableAction : public Action<Ts...>, public Parented<A2DP> {
  public:
-  void play(const Ts &...x) override { this->parent_->disable(); }
+  void play(const Ts &...x) override {
+    ESP_LOGI("a2dp", "a2dp.disable action");
+    this->parent_->disable();
+  }
 };
 
 template<typename... Ts>
 class A2DPRestartDiscoveryAction : public Action<Ts...>, public Parented<A2DP> {
  public:
-  void play(const Ts &...x) override { this->parent_->restart_discovery(); }
+  void play(const Ts &...x) override {
+    ESP_LOGI("a2dp", "a2dp.restart_discovery action");
+    this->parent_->restart_discovery();
+  }
 };
 
 }  // namespace esphome::a2dp
