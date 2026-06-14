@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_TYPE
+from esphome.const import CONF_NAME, CONF_TYPE
 from esphome.types import ConfigType
 
 from .. import CONF_A2DP_ID, A2DP, a2dp_ns
@@ -24,12 +24,22 @@ A2DPTextSensor = a2dp_ns.class_(
     cg.Component,
 )
 
-CONFIG_SCHEMA = text_sensor.text_sensor_schema(A2DPTextSensor).extend(
-    {
-        cv.GenerateID(CONF_A2DP_ID): cv.use_id(A2DP),
-        cv.Required(CONF_TYPE): cv.one_of(*METADATA_TYPES, lower=True),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+def add_a2dp_name_suffix(config):
+    config = config.copy()
+    if CONF_NAME in config and config[CONF_NAME] and "a2dp" not in config[CONF_NAME].lower():
+        config[CONF_NAME] = f"{config[CONF_NAME]} A2DP"
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
+    add_a2dp_name_suffix,
+    text_sensor.text_sensor_schema(A2DPTextSensor).extend(
+        {
+            cv.GenerateID(CONF_A2DP_ID): cv.use_id(A2DP),
+            cv.Required(CONF_TYPE): cv.one_of(*METADATA_TYPES, lower=True),
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+)
 
 
 async def to_code(config: ConfigType) -> None:
