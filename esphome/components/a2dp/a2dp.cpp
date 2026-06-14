@@ -3,6 +3,7 @@
 #if defined(USE_ESP32) && defined(USE_A2DP)
 
 #include "esphome/core/log.h"
+#include <algorithm>
 #include <cstring>
 #include <memory>
 
@@ -227,6 +228,9 @@ void A2DP::loop() {
           if (this->software_coexistence_ && this->prefer_bt_while_streaming_)
             this->set_coex_preference_(true);
 #endif
+#ifdef USE_A2DP_AVRCP
+          this->request_avrcp_metadata();
+#endif
           this->audio_state_callback_.call(true);
         }
         break;
@@ -272,12 +276,17 @@ void A2DP::loop() {
         this->avrcp_ct_connected_ = true;
         ESP_LOGD(TAG, "AVRCP CT connected");
         this->avrcp_ct_state_callback_.call(true);
+        this->request_avrcp_metadata();
         break;
 
       case A2DPEvent::AVRCP_CT_DISCONNECTED:
         this->avrcp_ct_connected_ = false;
         ESP_LOGD(TAG, "AVRCP CT disconnected");
         this->avrcp_ct_state_callback_.call(false);
+        break;
+
+      case A2DPEvent::AVRCP_METADATA_UPDATED:
+        this->avrcp_metadata_callback_.call(ev.metadata_attr, ev.metadata);
         break;
 #endif
 
@@ -636,12 +645,19 @@ void A2DP::handle_avrc_ct_event_(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_pa
       xQueueSend(this->event_queue_, &ev, 0);
       break;
     }
-    case ESP_AVRC_CT_PASSTHROUGH_RSP_EVT:
-      if (param->psth_rsp.key_state == ESP_AVRC_PT_CMD_STATE_PRESSED) {
-        uint8_t rel_tl = (param->psth_rsp.tl + 1) % 15;
-        esp_avrc_ct_send_passthrough_cmd(rel_tl, param->psth_rsp.key_code, ESP_AVRC_PT_CMD_STATE_RELEASED);
+    case ESP_AVRC_CT_METADATA_RSP_EVT: {
+      A2DPEventRecord ev{};
+      ev.type = A2DPEvent::AVRCP_METADATA_UPDATED;
+      ev.metadata_attr = param->meta_rsp.attr_id;
+      size_t len = 0;
+      if (param->meta_rsp.attr_text != nullptr && param->meta_rsp.attr_length > 0) {
+        len = std::min<size_t>(param->meta_rsp.attr_length, sizeof(ev.metadata) - 1);
+        memcpy(ev.metadata, param->meta_rsp.attr_text, len);
       }
+      ev.metadata[len] = '\0';
+      xQueueSend(this->event_queue_, &ev, 0);
       break;
+    }
     default:
       break;
   }

@@ -35,6 +35,7 @@ enum class A2DPEvent : uint8_t {
   AVRCP_VOLUME_CHANGED,
   AVRCP_CT_CONNECTED,
   AVRCP_CT_DISCONNECTED,
+  AVRCP_METADATA_UPDATED,
 #endif
 };
 
@@ -52,7 +53,9 @@ struct A2DPEventRecord {
   uint8_t min_bitpool;
   uint8_t max_bitpool;
   uint8_t volume;  ///< AVRCP_VOLUME_CHANGED: 0-127
+  uint8_t metadata_attr;
   esp_bd_addr_t remote_bda;
+  char metadata[128];
   char peer_name[ESP_BT_GAP_MAX_BDNAME_LEN + 1];
 };
 
@@ -140,11 +143,14 @@ class A2DP : public Component {
   void add_on_avrcp_ct_state_callback(F &&callback) {
     this->avrcp_ct_state_callback_.add(std::forward<F>(callback));
   }
+  template<typename F>
+  void add_on_avrcp_metadata_callback(F &&callback) {
+    this->avrcp_metadata_callback_.add(std::forward<F>(callback));
+  }
 
   uint8_t get_avrcp_volume() const { return this->avrcp_volume_; }
   bool is_avrcp_ct_connected() const { return this->avrcp_ct_connected_; }
 
-  /// @brief Send AVRCP CT passthrough command (press + auto-release via callback).
   void send_avrc_passthrough(uint8_t key_code) {
     if (!this->avrcp_ct_connected_) {
       ESP_LOGW("a2dp", "AVRCP CT not connected — passthrough ignored");
@@ -153,6 +159,15 @@ class A2DP : public Component {
     uint8_t tl = this->avrc_ct_tl_;
     this->avrc_ct_tl_ = (this->avrc_ct_tl_ + 2) % 15;
     esp_avrc_ct_send_passthrough_cmd(tl, key_code, ESP_AVRC_PT_CMD_STATE_PRESSED);
+    esp_avrc_ct_send_passthrough_cmd((tl + 1) % 15, key_code, ESP_AVRC_PT_CMD_STATE_RELEASED);
+  }
+
+  void request_avrcp_metadata() {
+    if (!this->avrcp_ct_connected_)
+      return;
+    uint8_t tl = this->avrc_ct_tl_;
+    this->avrc_ct_tl_ = (this->avrc_ct_tl_ + 1) % 15;
+    esp_avrc_ct_send_metadata_cmd(tl, ESP_AVRC_MD_ATTR_TITLE | ESP_AVRC_MD_ATTR_ARTIST | ESP_AVRC_MD_ATTR_ALBUM);
   }
 #endif
 
@@ -233,6 +248,7 @@ class A2DP : public Component {
 #ifdef USE_A2DP_AVRCP
   LazyCallbackManager<void(uint8_t)> avrcp_volume_callback_;
   LazyCallbackManager<void(bool)> avrcp_ct_state_callback_;
+  LazyCallbackManager<void(uint8_t, const char *)> avrcp_metadata_callback_;
 #endif
 };
 
