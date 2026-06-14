@@ -167,6 +167,8 @@ async def to_code(config: ConfigType) -> None:
     add_idf_sdkconfig_option("CONFIG_BT_A2DP_ENABLE", True)
     add_idf_sdkconfig_option("CONFIG_BT_AVRC_TG_ENABLE", True)
     add_idf_sdkconfig_option("CONFIG_BT_AVRC_CT_ENABLE", True)
+    add_idf_sdkconfig_option("CONFIG_BT_ALLOCATION_FROM_SPIRAM_FIRST", True)
+    add_idf_sdkconfig_option("CONFIG_BT_BLE_DYNAMIC_ENV_MEMORY", True)
     add_idf_sdkconfig_option("CONFIG_BT_BLE_ENABLED", ble_required)
     add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_MODE_BR_EDR_ONLY", not ble_required)
     add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_MODE_BLE_ONLY", False)
