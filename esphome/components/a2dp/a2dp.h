@@ -169,6 +169,16 @@ class A2DP : public Component {
     this->avrc_ct_tl_ = (this->avrc_ct_tl_ + 1) % 15;
     esp_avrc_ct_send_metadata_cmd(tl, ESP_AVRC_MD_ATTR_TITLE | ESP_AVRC_MD_ATTR_ARTIST | ESP_AVRC_MD_ATTR_ALBUM);
   }
+
+  void register_avrcp_notifications() {
+    if (!this->avrcp_ct_connected_)
+      return;
+    uint8_t track_tl = this->avrc_ct_tl_;
+    uint8_t status_tl = (track_tl + 1) % 15;
+    this->avrc_ct_tl_ = (this->avrc_ct_tl_ + 2) % 15;
+    esp_avrc_ct_send_register_notification_cmd(track_tl, ESP_AVRC_RN_TRACK_CHANGE, 0);
+    esp_avrc_ct_send_register_notification_cmd(status_tl, ESP_AVRC_RN_PLAY_STATUS_CHANGE, 0);
+  }
 #endif
 
  protected:

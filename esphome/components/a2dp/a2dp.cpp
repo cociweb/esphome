@@ -24,9 +24,9 @@ struct SavedPeer {
 };
 
 static constexpr uint32_t A2DP_PEER_PREF_HASH = 0xA2D90001UL;
-static constexpr uint32_t RECONNECT_INITIAL_DELAY_MS = 1000;
-static constexpr uint32_t RECONNECT_RETRY_DELAY_MS = 1000;
-static constexpr uint8_t RECONNECT_MAX_ATTEMPTS = 5;
+static constexpr uint32_t RECONNECT_INITIAL_DELAY_MS = 3000;
+static constexpr uint32_t RECONNECT_RETRY_DELAY_MS = 5000;
+static constexpr uint8_t RECONNECT_MAX_ATTEMPTS = 60;
 
 static void format_bda_(const esp_bd_addr_t bda, char *buf, size_t len) {
   snprintf(buf, len, "%02X:%02X:%02X:%02X:%02X:%02X", bda[0], bda[1], bda[2], bda[3], bda[4], bda[5]);
@@ -169,6 +169,9 @@ void A2DP::setup() {
   if (this->peer_pref_.load(&saved_peer) && saved_peer.valid == 1) {
     memcpy(this->last_peer_bda_, saved_peer.bda, sizeof(this->last_peer_bda_));
     this->has_last_peer_ = true;
+    char bda[18];
+    format_bda_(this->last_peer_bda_, bda, sizeof(bda));
+    ESP_LOGI(TAG, "Loaded last A2DP peer: %s", bda);
   }
 
   if (this->auto_start_) {
@@ -217,6 +220,10 @@ void A2DP::loop() {
           this->connection_callback_.call(false);
           this->audio_state_callback_.call(false);
           this->start_discovery_();
+        }
+        if (this->enabled_ && this->auto_reconnect_ && this->has_last_peer_ &&
+            this->reconnect_attempts_ < RECONNECT_MAX_ATTEMPTS) {
+          this->reconnect_at_ = millis() + RECONNECT_RETRY_DELAY_MS;
         }
         break;
 
@@ -276,6 +283,7 @@ void A2DP::loop() {
         this->avrcp_ct_connected_ = true;
         ESP_LOGD(TAG, "AVRCP CT connected");
         this->avrcp_ct_state_callback_.call(true);
+        this->register_avrcp_notifications();
         this->request_avrcp_metadata();
         break;
 
@@ -329,6 +337,8 @@ void A2DP::enable() {
   if (this->auto_reconnect_ && this->has_last_peer_) {
     this->reconnect_attempts_ = 0;
     this->reconnect_at_ = millis() + RECONNECT_INITIAL_DELAY_MS;
+  } else if (this->auto_reconnect_) {
+    ESP_LOGI(TAG, "Auto reconnect enabled but no saved A2DP peer is available");
   }
   this->start_discovery_();
 #ifdef USE_SOFTWARE_COEXISTENCE
@@ -501,12 +511,15 @@ void A2DP::reconnect_to_last_peer_() {
   esp_err_t ret = esp_a2d_sink_connect(this->last_peer_bda_);
   if (ret != ESP_OK) {
     ESP_LOGW(TAG, "Reconnect to %s failed to start: %s", bda, esp_err_to_name(ret));
-    if (ret == ESP_ERR_INVALID_STATE && this->reconnect_attempts_ < RECONNECT_MAX_ATTEMPTS) {
+    if (this->reconnect_attempts_ < RECONNECT_MAX_ATTEMPTS) {
       this->reconnect_at_ = millis() + RECONNECT_RETRY_DELAY_MS;
     }
     return;
   }
   ESP_LOGI(TAG, "Reconnect to last A2DP source requested: %s", bda);
+  if (this->reconnect_attempts_ < RECONNECT_MAX_ATTEMPTS) {
+    this->reconnect_at_ = millis() + RECONNECT_RETRY_DELAY_MS;
+  }
 }
 
 void A2DP::save_peer_(const esp_bd_addr_t remote_bda) {
@@ -658,6 +671,13 @@ void A2DP::handle_avrc_ct_event_(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_pa
       xQueueSend(this->event_queue_, &ev, 0);
       break;
     }
+    case ESP_AVRC_CT_CHANGE_NOTIFY_EVT:
+      if (param->change_ntf.event_id == ESP_AVRC_RN_TRACK_CHANGE ||
+          param->change_ntf.event_id == ESP_AVRC_RN_PLAY_STATUS_CHANGE) {
+        this->request_avrcp_metadata();
+        this->register_avrcp_notifications();
+      }
+      break;
     default:
       break;
   }
