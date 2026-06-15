@@ -1,0 +1,12 @@
+esphome:
+  name: a2dp-sink-ms-test
+  friendly_name: A2DP Sink Media Source Test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+psram:
+
+<<: !include common-media_source.yaml

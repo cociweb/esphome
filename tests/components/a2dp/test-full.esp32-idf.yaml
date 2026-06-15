@@ -1,0 +1,12 @@
+esphome:
+  name: a2dp-full-test
+  friendly_name: A2DP Full Test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+psram:
+
+<<: !include common-full.yaml

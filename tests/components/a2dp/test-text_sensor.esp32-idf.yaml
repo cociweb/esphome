@@ -1,0 +1,10 @@
+esphome:
+  name: a2dp-ts-test
+  friendly_name: A2DP Text Sensor Test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+<<: !include common-text_sensor.yaml

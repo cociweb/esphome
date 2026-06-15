@@ -1,0 +1,49 @@
+a2dp:
+  id: a2dp_hub
+  device_name: ESPHome AVRCP Actions Test
+  auto_start: false
+
+a2dp_avrcp:
+  id: avrcp_ctrl
+  a2dp_id: a2dp_hub
+
+button:
+  - platform: template
+    name: Play
+    on_press:
+      - a2dp_avrcp.play: avrcp_ctrl
+
+  - platform: template
+    name: Pause
+    on_press:
+      - a2dp_avrcp.pause: avrcp_ctrl
+
+  - platform: template
+    name: Play Pause
+    on_press:
+      - a2dp_avrcp.play_pause: avrcp_ctrl
+
+  - platform: template
+    name: Next
+    on_press:
+      - a2dp_avrcp.next: avrcp_ctrl
+
+  - platform: template
+    name: Previous
+    on_press:
+      - a2dp_avrcp.previous: avrcp_ctrl
+
+  - platform: template
+    name: Stop
+    on_press:
+      - a2dp_avrcp.stop: avrcp_ctrl
+
+  - platform: template
+    name: Volume Up
+    on_press:
+      - a2dp_avrcp.volume_up: avrcp_ctrl
+
+  - platform: template
+    name: Volume Down
+    on_press:
+      - a2dp_avrcp.volume_down: avrcp_ctrl

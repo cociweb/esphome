@@ -1,0 +1,10 @@
+esphome:
+  name: a2dp-avrcp-test
+  friendly_name: A2DP AVRCP Test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+<<: !include common.yaml

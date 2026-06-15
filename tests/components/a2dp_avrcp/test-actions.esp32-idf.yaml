@@ -1,0 +1,10 @@
+esphome:
+  name: a2dp-avrcp-actions-test
+  friendly_name: A2DP AVRCP Actions Test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+<<: !include common-actions.yaml

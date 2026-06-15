@@ -1,0 +1,28 @@
+a2dp:
+  id: a2dp_hub
+  device_name: ESPHome A2DP Full Test
+  auto_start: true
+  auto_reconnect: true
+  ring_buffer_size: 262144
+  use_psram: true
+  discoverable_duration: 3min
+  preferred_sample_rate: 44100
+  preferred_bits_per_sample: 32
+  coexistence:
+    software_coexistence: true
+    prefer_bt_while_streaming: true
+    prefer_bt_while_discoverable: false
+
+a2dp_avrcp:
+  id: avrcp_ctrl
+  a2dp_id: a2dp_hub
+  on_volume_changed:
+    - logger.log:
+        format: "Volume: %u/127"
+        args: [x]
+
+text_sensor:
+  - platform: a2dp
+    id: a2dp_track_title
+    name: Track Title
+    type: title

@@ -1,0 +1,10 @@
+esphome:
+  name: a2dp-sink-bs-test
+  friendly_name: A2DP Sink Binary Sensor Test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+<<: !include common-binary_sensor.yaml

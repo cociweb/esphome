@@ -1,0 +1,12 @@
+a2dp:
+  id: a2dp_hub
+  device_name: ESPHome AVRCP Test
+  auto_start: false
+
+a2dp_avrcp:
+  id: avrcp_ctrl
+  a2dp_id: a2dp_hub
+  on_volume_changed:
+    - logger.log:
+        format: "Volume: %u/127"
+        args: [x]
