@@ -227,7 +227,9 @@ void A2DPSinkMediaSource::reader_task_() {
 
     if (bits & EVT_CMD_FLUSH) {
       xEventGroupClearBits(this->event_group_, EVT_CMD_FLUSH | EVT_CMD_DRAIN);
-      audio_source->clear_buffered_data();
+      if (audio_source->available() > 0)
+        audio_source->consume(audio_source->available());
+      this->parent_->get_parent()->reset_audio_buffer();
       continue;
     }
 
@@ -304,7 +306,9 @@ read_chunk:
 
 task_exit_with_idle:
   ESP_LOGD(TAG, "Reader task: drain done, signalling IDLE");
-  audio_source->clear_buffered_data();
+  if (audio_source->available() > 0)
+    audio_source->consume(audio_source->available());
+  this->parent_->get_parent()->reset_audio_buffer();
   xEventGroupSetBits(this->event_group_, EVT_TASK_WANT_IDLE | EVT_TASK_SUSPENDED);
   App.wake_loop_threadsafe();
   vTaskSuspend(nullptr);
@@ -312,7 +316,9 @@ task_exit_with_idle:
 
 task_exit_no_idle:
   ESP_LOGD(TAG, "Reader task: stopped by command");
-  audio_source->clear_buffered_data();
+  if (audio_source->available() > 0)
+    audio_source->consume(audio_source->available());
+  this->parent_->get_parent()->reset_audio_buffer();
   xEventGroupSetBits(this->event_group_, EVT_TASK_SUSPENDED);
   App.wake_loop_threadsafe();
   vTaskSuspend(nullptr);
