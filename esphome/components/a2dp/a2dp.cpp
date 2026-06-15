@@ -449,6 +449,10 @@ bool A2DP::init_bt_() {
     ESP_LOGE(TAG, "esp_bt_gap_set_device_name failed: %s", esp_err_to_name(ret));
     return false;
   }
+  if (this->pairing_pin_len_ > 0) {
+    esp_bt_pin_type_t pin_type = ESP_BT_PIN_TYPE_FIXED;
+    esp_bt_gap_set_pin(pin_type, this->pairing_pin_len_, reinterpret_cast<uint8_t *>(this->pairing_pin_));
+  }
 
 #ifdef USE_A2DP_AVRCP
   esp_avrc_ct_register_callback(s_avrc_ct_callback_);
@@ -636,6 +640,10 @@ void A2DP::handle_gap_event_(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t 
             sizeof(ev.peer_name) - 1);
     ev.peer_name[sizeof(ev.peer_name) - 1] = '\0';
     xQueueSend(this->event_queue_, &ev, 0);
+  } else if (event == ESP_BT_GAP_PIN_REQ_EVT && this->pairing_pin_len_ > 0) {
+    esp_bt_pin_code_t pin_code{};
+    memcpy(pin_code, this->pairing_pin_, this->pairing_pin_len_);
+    esp_bt_gap_pin_reply(param->pin_req.bda, true, this->pairing_pin_len_, pin_code);
   }
 }
 

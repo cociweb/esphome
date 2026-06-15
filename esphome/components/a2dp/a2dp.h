@@ -90,6 +90,11 @@ class A2DP : public Component {
   void set_auto_reconnect(bool auto_reconnect) { this->auto_reconnect_ = auto_reconnect; }
   void set_discoverable_duration_ms(uint32_t ms) { this->discoverable_duration_ms_ = ms; }
   void set_keep_discoverable_after_connect(bool keep) { this->keep_discoverable_after_connect_ = keep; }
+  void set_pairing_pin(const char *pin) {
+    strncpy(this->pairing_pin_, pin, sizeof(this->pairing_pin_) - 1);
+    this->pairing_pin_[sizeof(this->pairing_pin_) - 1] = '\0';
+    this->pairing_pin_len_ = strlen(this->pairing_pin_);
+  }
   void set_preferred_bits_per_sample(uint8_t bits_per_sample) {
     this->preferred_bits_per_sample_ = bits_per_sample;
   }
@@ -236,6 +241,8 @@ class A2DP : public Component {
   bool auto_reconnect_{false};
   uint32_t discoverable_duration_ms_{0};
   bool keep_discoverable_after_connect_{false};
+  char pairing_pin_[17]{};
+  uint8_t pairing_pin_len_{0};
   uint8_t preferred_bits_per_sample_{16};
   ESPPreferenceObject peer_pref_;
   esp_bd_addr_t last_peer_bda_{};

@@ -20,6 +20,7 @@ CONF_RING_BUFFER_SIZE = "ring_buffer_size"
 CONF_USE_PSRAM = "use_psram"
 CONF_DISCOVERABLE_DURATION = "discoverable_duration"
 CONF_KEEP_DISCOVERABLE_AFTER_CONNECT = "keep_discoverable_after_connect"
+CONF_PAIRING_PIN = "pairing_pin"
 CONF_PREFERRED_SAMPLE_RATE = "preferred_sample_rate"
 CONF_PREFERRED_BITS_PER_SAMPLE = "preferred_bits_per_sample"
 CONF_COEXISTENCE = "coexistence"
@@ -42,6 +43,13 @@ SAMPLE_RATE_BUILD_FLAGS = {
     44100: "A2D_SBC_IE_SAMP_FREQ_44",
     48000: "A2D_SBC_IE_SAMP_FREQ_48",
 }
+
+
+def validate_pairing_pin(value):
+    value = cv.string_strict(value)
+    if not 1 <= len(value) <= 16:
+        raise cv.Invalid("pairing_pin must be between 1 and 16 characters")
+    return value
 
 a2dp_ns = cg.esphome_ns.namespace("a2dp")
 A2DP = a2dp_ns.class_("A2DP", cg.Component)
@@ -84,6 +92,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_USE_PSRAM, default=False): cv.boolean,
             cv.Optional(CONF_DISCOVERABLE_DURATION): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_KEEP_DISCOVERABLE_AFTER_CONNECT, default=False): cv.boolean,
+            cv.Optional(CONF_PAIRING_PIN): validate_pairing_pin,
             cv.Optional(CONF_PREFERRED_SAMPLE_RATE, default="auto"): cv.Any(
                 "auto", cv.one_of(44100, 48000, int=True)
             ),
@@ -157,6 +166,8 @@ async def to_code(config: ConfigType) -> None:
     if CONF_DISCOVERABLE_DURATION in config:
         cg.add(var.set_discoverable_duration_ms(config[CONF_DISCOVERABLE_DURATION].total_milliseconds))
     cg.add(var.set_keep_discoverable_after_connect(config[CONF_KEEP_DISCOVERABLE_AFTER_CONNECT]))
+    if CONF_PAIRING_PIN in config:
+        cg.add(var.set_pairing_pin(config[CONF_PAIRING_PIN]))
 
     if coex := config.get(CONF_COEXISTENCE):
         cg.add(var.set_software_coexistence(coex[CONF_SOFTWARE_COEXISTENCE]))
