@@ -19,6 +19,7 @@ CONF_AUTO_RECONNECT = "auto_reconnect"
 CONF_RING_BUFFER_SIZE = "ring_buffer_size"
 CONF_USE_PSRAM = "use_psram"
 CONF_DISCOVERABLE_DURATION = "discoverable_duration"
+CONF_KEEP_DISCOVERABLE_AFTER_CONNECT = "keep_discoverable_after_connect"
 CONF_PREFERRED_SAMPLE_RATE = "preferred_sample_rate"
 CONF_PREFERRED_BITS_PER_SAMPLE = "preferred_bits_per_sample"
 CONF_COEXISTENCE = "coexistence"
@@ -82,6 +83,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_USE_PSRAM, default=False): cv.boolean,
             cv.Optional(CONF_DISCOVERABLE_DURATION): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_KEEP_DISCOVERABLE_AFTER_CONNECT, default=False): cv.boolean,
             cv.Optional(CONF_PREFERRED_SAMPLE_RATE, default="auto"): cv.Any(
                 "auto", cv.one_of(44100, 48000, int=True)
             ),
@@ -154,6 +156,7 @@ async def to_code(config: ConfigType) -> None:
         )
     if CONF_DISCOVERABLE_DURATION in config:
         cg.add(var.set_discoverable_duration_ms(config[CONF_DISCOVERABLE_DURATION].total_milliseconds))
+    cg.add(var.set_keep_discoverable_after_connect(config[CONF_KEEP_DISCOVERABLE_AFTER_CONNECT]))
 
     if coex := config.get(CONF_COEXISTENCE):
         cg.add(var.set_software_coexistence(coex[CONF_SOFTWARE_COEXISTENCE]))

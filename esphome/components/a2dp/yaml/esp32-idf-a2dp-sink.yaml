@@ -1,0 +1,141 @@
+substitutions:
+  friendly_name: A2DP Sink Example
+
+esphome:
+  name: a2dp-sink-example
+  friendly_name: ${friendly_name}
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+api:
+ota:
+  - platform: esphome
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+psram:
+
+audio:
+
+i2s_audio:
+  - id: i2s_audio_bus
+    i2s_lrclk_pin: GPIO25
+    i2s_bclk_pin: GPIO27
+
+speaker:
+  - platform: i2s_audio
+    id: speaker_out
+    i2s_audio_id: i2s_audio_bus
+    i2s_dout_pin: GPIO26
+    dac_type: external
+    channel: stereo
+    sample_rate: 44100
+    bits_per_sample: 16bit
+
+  - platform: resampler
+    id: media_speaker
+    output_speaker: speaker_out
+    buffer_duration: 50ms
+
+external_components:
+  - source: ../..
+    components: [a2dp, a2dp_sink, a2dp_avrcp]
+    refresh: 0s
+
+a2dp:
+  id: a2dp_hub
+  device_name: ${friendly_name}
+  auto_start: true
+  auto_reconnect: true
+  discoverable_duration: 3min
+  keep_discoverable_after_connect: true
+  ring_buffer_size: 262144
+  use_psram: true
+  coexistence:
+    software_coexistence: true
+    prefer_bt_while_streaming: true
+    prefer_bt_while_discoverable: false
+
+a2dp_sink:
+  id: a2dp_receiver
+  a2dp_id: a2dp_hub
+  sample_rate: 44100
+
+a2dp_avrcp:
+  id: avrcp_ctrl
+  a2dp_id: a2dp_hub
+  on_volume_changed:
+    - logger.log:
+        format: "AVRCP volume: %u/127"
+        args: [x]
+
+media_source:
+  - platform: a2dp_sink
+    id: a2dp_media_source
+    a2dp_sink_id: a2dp_receiver
+    task_stack_in_psram: true
+
+media_player:
+  - platform: speaker_source
+    id: player
+    name: Media Player
+    media_pipeline:
+      speaker: media_speaker
+      format: FLAC
+      num_channels: 2
+      sample_rate: 44100
+      sources:
+        - a2dp_media_source
+
+binary_sensor:
+  - platform: a2dp_sink
+    a2dp_sink_id: a2dp_receiver
+    name: Bluetooth Connected
+    on_press:
+      - media_player.play_media:
+          id: player
+          media_url: "a2dp://stream"
+
+text_sensor:
+  - platform: a2dp_sink
+    a2dp_sink_id: a2dp_receiver
+    name: Bluetooth Source Name
+
+  - platform: a2dp
+    id: a2dp_track_title
+    name: Track Title
+    type: title
+
+  - platform: a2dp
+    id: a2dp_track_artist
+    name: Track Artist
+    type: artist
+
+  - platform: a2dp
+    id: a2dp_track_album
+    name: Track Album
+    type: album
+
+button:
+  - platform: template
+    name: BT Play/Pause
+    on_press:
+      - a2dp_avrcp.play_pause: avrcp_ctrl
+
+  - platform: template
+    name: BT Next
+    on_press:
+      - a2dp_avrcp.next: avrcp_ctrl
+
+  - platform: template
+    name: BT Previous
+    on_press:
+      - a2dp_avrcp.previous: avrcp_ctrl

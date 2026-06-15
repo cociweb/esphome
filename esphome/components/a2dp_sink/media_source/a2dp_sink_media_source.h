@@ -6,6 +6,7 @@
 
 #include "esphome/components/a2dp_sink/a2dp_sink.h"
 #include "esphome/components/audio/audio.h"
+#include "esphome/components/audio/audio_transfer_buffer.h"
 #include "esphome/components/media_source/media_source.h"
 #include "esphome/core/component.h"
 #include "esphome/core/static_task.h"
@@ -13,8 +14,6 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "freertos/task.h"
-
-#include <atomic>
 
 namespace esphome::a2dp_sink {
 
@@ -31,12 +30,14 @@ static constexpr uint32_t RB_READ_TIMEOUT_MS = 20;
 static constexpr uint32_t WRITE_TIMEOUT_MS = 100;
 /// @brief Polling interval (ms) when idle / draining.
 static constexpr uint32_t IDLE_POLL_MS = 10;
+static constexpr uint8_t ZERO_WRITE_STOP_COUNT = 3;
 
 // --- Event bits: main loop → reader task ---
 static constexpr EventBits_t EVT_CMD_START = BIT0;  ///< play_uri / resume
 static constexpr EventBits_t EVT_CMD_STOP  = BIT1;  ///< stop immediately
 static constexpr EventBits_t EVT_CMD_PAUSE = BIT2;  ///< pause output
 static constexpr EventBits_t EVT_CMD_DRAIN = BIT3;  ///< BT audio stopped, drain buffer
+static constexpr EventBits_t EVT_CMD_FLUSH = BIT6;  ///< track changed, discard stale buffered PCM
 
 // --- Event bits: reader task → main loop ---
 /// Task finished normally and wants the orchestrator notified of IDLE.
@@ -45,7 +46,7 @@ static constexpr EventBits_t EVT_TASK_WANT_IDLE  = BIT4;
 static constexpr EventBits_t EVT_TASK_SUSPENDED  = BIT5;
 
 static constexpr EventBits_t EVT_ALL_CMD_BITS =
-    EVT_CMD_START | EVT_CMD_STOP | EVT_CMD_PAUSE | EVT_CMD_DRAIN;
+    EVT_CMD_START | EVT_CMD_STOP | EVT_CMD_PAUSE | EVT_CMD_DRAIN | EVT_CMD_FLUSH;
 static constexpr EventBits_t EVT_ALL_BITS =
     EVT_ALL_CMD_BITS | EVT_TASK_WANT_IDLE | EVT_TASK_SUSPENDED;
 
@@ -95,9 +96,7 @@ class A2DPSinkMediaSource : public Component,
   StaticTask task_;
   EventGroupHandle_t event_group_{nullptr};
   bool task_stack_in_psram_{false};
-
-  /// @brief PCM read buffer — internal RAM (not PSRAM) for DMA-friendliness.
-  uint8_t read_buf_[READER_CHUNK_SIZE];
+  bool pending_stop_{false};
 };
 
 }  // namespace esphome::a2dp_sink

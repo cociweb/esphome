@@ -41,15 +41,16 @@ class A2DPAVRCP : public Component, public Parented<A2DP> {
     this->volume_callback_.add(std::forward<F>(callback));
   }
 
-  void play()           { this->parent_->send_avrc_passthrough(ESP_AVRC_PT_CMD_PLAY); }
+  void play()           { this->parent_->send_avrc_passthrough(ESP_AVRC_PT_CMD_PLAY, true); }
   void pause()          { this->parent_->send_avrc_passthrough(ESP_AVRC_PT_CMD_PAUSE); }
   void play_pause() {
     this->parent_->send_avrc_passthrough(
-        this->parent_->is_audio_streaming() ? ESP_AVRC_PT_CMD_PAUSE : ESP_AVRC_PT_CMD_PLAY);
+        this->parent_->is_audio_streaming() ? ESP_AVRC_PT_CMD_PAUSE : ESP_AVRC_PT_CMD_PLAY,
+        !this->parent_->is_audio_streaming());
   }
-  void next_track()     { this->parent_->send_avrc_passthrough(ESP_AVRC_PT_CMD_FORWARD); }
-  void previous_track() { this->parent_->send_avrc_passthrough(ESP_AVRC_PT_CMD_BACKWARD); }
-  void stop()           { this->parent_->send_avrc_passthrough(ESP_AVRC_PT_CMD_STOP); }
+  void next_track()     { this->parent_->send_avrc_passthrough(ESP_AVRC_PT_CMD_FORWARD, true); }
+  void previous_track() { this->parent_->send_avrc_passthrough(ESP_AVRC_PT_CMD_BACKWARD, true); }
+  void stop()           { this->parent_->send_avrc_passthrough(ESP_AVRC_PT_CMD_PAUSE); }
   void volume_up()      { this->parent_->send_avrc_passthrough(ESP_AVRC_PT_CMD_VOL_UP); }
   void volume_down()    { this->parent_->send_avrc_passthrough(ESP_AVRC_PT_CMD_VOL_DOWN); }
 

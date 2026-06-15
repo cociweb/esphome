@@ -46,13 +46,13 @@ class A2DPSinkAVRCP : public Component, public Parented<A2DPSink> {
   }
 
   // --- Transport control (delegates to A2DPSink AVRCP CT) ---
-  void play() { this->parent_->avrc_play(); }
-  void pause() { this->parent_->avrc_pause(); }
-  void next_track() { this->parent_->avrc_next(); }
-  void previous_track() { this->parent_->avrc_previous(); }
-  void stop() { this->parent_->avrc_stop(); }
-  void volume_up() { this->parent_->avrc_volume_up(); }
-  void volume_down() { this->parent_->avrc_volume_down(); }
+  void play() { this->parent_->get_parent()->send_avrc_passthrough(ESP_AVRC_PT_CMD_PLAY, true); }
+  void pause() { this->parent_->get_parent()->send_avrc_passthrough(ESP_AVRC_PT_CMD_PAUSE); }
+  void next_track() { this->parent_->get_parent()->send_avrc_passthrough(ESP_AVRC_PT_CMD_FORWARD, true); }
+  void previous_track() { this->parent_->get_parent()->send_avrc_passthrough(ESP_AVRC_PT_CMD_BACKWARD, true); }
+  void stop() { this->parent_->get_parent()->send_avrc_passthrough(ESP_AVRC_PT_CMD_PAUSE); }
+  void volume_up() { this->parent_->get_parent()->send_avrc_passthrough(ESP_AVRC_PT_CMD_VOL_UP); }
+  void volume_down() { this->parent_->get_parent()->send_avrc_passthrough(ESP_AVRC_PT_CMD_VOL_DOWN); }
 
   /// @brief Current AVRCP absolute volume (0-127) as last reported by remote.
   uint8_t get_volume() const { return this->parent_->get_avrcp_volume(); }

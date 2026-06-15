@@ -109,3 +109,4 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_A2DP_SINK_ID])
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
+    cg.add_define("USE_A2DP_AVRCP")

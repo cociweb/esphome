@@ -157,7 +157,7 @@ void A2DP::setup() {
 
   auto pref = this->use_psram_ ? ring_buffer::RingBuffer::MemoryPreference::EXTERNAL_FIRST
                                 : ring_buffer::RingBuffer::MemoryPreference::INTERNAL_FIRST;
-  this->ring_buffer_ = ring_buffer::RingBuffer::create(this->ring_buffer_size_, pref).release();
+  this->ring_buffer_ = ring_buffer::RingBuffer::create(this->ring_buffer_size_, pref);
   if (this->ring_buffer_ == nullptr) {
     ESP_LOGE(TAG, "Failed to allocate ring buffer (%u bytes)", (unsigned) this->ring_buffer_size_);
     this->mark_failed();
@@ -177,6 +177,13 @@ void A2DP::setup() {
 }
 
 void A2DP::loop() {
+  if (this->audio_suspend_requested_.exchange(false, std::memory_order_relaxed) && this->enabled_ &&
+      this->connected_ && this->audio_streaming_) {
+    esp_err_t ret = esp_a2d_media_ctrl(ESP_A2D_MEDIA_CTRL_SUSPEND);
+    if (ret != ESP_OK)
+      ESP_LOGW(TAG, "esp_a2d_media_ctrl(SUSPEND) failed: %s", esp_err_to_name(ret));
+  }
+
   if (this->discoverable_ && this->discoverable_duration_ms_ > 0 &&
       (millis() - this->discoverable_started_at_) >= this->discoverable_duration_ms_) {
     this->stop_discovery_();
@@ -185,6 +192,13 @@ void A2DP::loop() {
   if (this->enabled_ && !this->connected_ && this->reconnect_at_ != 0 && millis() >= this->reconnect_at_) {
     this->reconnect_to_last_peer_();
   }
+
+#ifdef USE_A2DP_AVRCP
+  if (this->metadata_refresh_at_ != 0 && millis() >= this->metadata_refresh_at_) {
+    this->metadata_refresh_at_ = 0;
+    this->request_avrcp_metadata();
+  }
+#endif
 
   A2DPEventRecord ev;
   while (xQueueReceive(this->event_queue_, &ev, 0) == pdTRUE) {
@@ -195,7 +209,8 @@ void A2DP::loop() {
           this->reconnect_at_ = 0;
           this->reconnect_attempts_ = 0;
           this->save_peer_(ev.remote_bda);
-          this->stop_discovery_();
+          if (!this->keep_discoverable_after_connect_)
+            this->stop_discovery_();
           ESP_LOGI(TAG, "BT connected");
 #ifdef USE_SOFTWARE_COEXISTENCE
           if (this->software_coexistence_ && !this->prefer_bt_while_discoverable_)
@@ -209,6 +224,7 @@ void A2DP::loop() {
         if (this->connected_) {
           this->connected_ = false;
           this->audio_streaming_ = false;
+          this->audio_suspend_requested_.store(false, std::memory_order_relaxed);
           ESP_LOGI(TAG, "BT disconnected");
 #ifdef USE_SOFTWARE_COEXISTENCE
           if (this->software_coexistence_)
@@ -238,6 +254,7 @@ void A2DP::loop() {
       case A2DPEvent::AUDIO_STOPPED:
         if (this->audio_streaming_) {
           this->audio_streaming_ = false;
+          this->audio_suspend_requested_.store(false, std::memory_order_relaxed);
           ESP_LOGI(TAG, "A2DP audio stopped");
 #ifdef USE_SOFTWARE_COEXISTENCE
           if (this->software_coexistence_ && this->prefer_bt_while_streaming_)
@@ -277,6 +294,7 @@ void A2DP::loop() {
         ESP_LOGD(TAG, "AVRCP CT connected");
         this->avrcp_ct_state_callback_.call(true);
         this->request_avrcp_metadata();
+        this->request_avrcp_track_change_notification();
         break;
 
       case A2DPEvent::AVRCP_CT_DISCONNECTED:
@@ -287,6 +305,12 @@ void A2DP::loop() {
 
       case A2DPEvent::AVRCP_METADATA_UPDATED:
         this->avrcp_metadata_callback_.call(ev.metadata_attr, ev.metadata);
+        break;
+
+      case A2DPEvent::AVRCP_TRACK_CHANGED:
+        this->avrcp_track_change_callback_.call();
+        this->metadata_refresh_at_ = millis() + 500;
+        this->request_avrcp_track_change_notification();
         break;
 #endif
 
@@ -346,6 +370,7 @@ void A2DP::disable() {
   this->enabled_ = false;
   this->connected_ = false;
   this->audio_streaming_ = false;
+  this->audio_suspend_requested_.store(false, std::memory_order_relaxed);
   this->reconnect_at_ = 0;
   this->reconnect_attempts_ = 0;
 #ifdef USE_SOFTWARE_COEXISTENCE
@@ -368,6 +393,10 @@ void A2DP::restart_discovery() {
     return;
   }
   this->start_discovery_();
+}
+
+void A2DP::request_audio_suspend() {
+  this->audio_suspend_requested_.store(true, std::memory_order_relaxed);
 }
 
 // ---------------------------------------------------------------------------
@@ -595,7 +624,7 @@ void A2DP::handle_a2d_event_(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param
 }
 
 void A2DP::handle_audio_data_(const uint8_t *data, uint32_t len) {
-  if (this->ring_buffer_ != nullptr)
+  if (this->audio_output_enabled_.load(std::memory_order_relaxed) && this->ring_buffer_ != nullptr)
     this->ring_buffer_->write(data, len);
 }
 
@@ -656,6 +685,14 @@ void A2DP::handle_avrc_ct_event_(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_pa
       }
       ev.metadata[len] = '\0';
       xQueueSend(this->event_queue_, &ev, 0);
+      break;
+    }
+    case ESP_AVRC_CT_CHANGE_NOTIFY_EVT: {
+      if (param->change_ntf.event_id == ESP_AVRC_RN_TRACK_CHANGE) {
+        A2DPEventRecord ev{};
+        ev.type = A2DPEvent::AVRCP_TRACK_CHANGED;
+        xQueueSend(this->event_queue_, &ev, 0);
+      }
       break;
     }
     default:

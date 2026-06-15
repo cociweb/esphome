@@ -44,8 +44,22 @@ class A2DPSink : public Component, public Parented<a2dp::A2DP> {
   uint32_t get_output_delay_ms() const { return this->output_delay_ms_; }
   uint32_t get_pcm_drain_throttle_ms() const { return this->pcm_drain_throttle_ms_; }
 
-  /// @brief Ring buffer pointer (delegates to hub).
-  ring_buffer::RingBuffer *get_ring_buffer() { return this->parent_->get_ring_buffer(); }
+  std::shared_ptr<ring_buffer::RingBuffer> get_ring_buffer() { return this->parent_->get_ring_buffer(); }
+
+#ifdef USE_A2DP_AVRCP
+  uint8_t get_avrcp_volume() const { return this->parent_->get_avrcp_volume(); }
+  bool is_avrcp_ct_connected() const { return this->parent_->is_avrcp_ct_connected(); }
+
+  template<typename F>
+  void add_on_avrcp_volume_callback(F &&callback) {
+    this->parent_->add_on_avrcp_volume_callback(std::forward<F>(callback));
+  }
+
+  template<typename F>
+  void add_on_avrcp_track_change_callback(F &&callback) {
+    this->parent_->add_on_avrcp_track_change_callback(std::forward<F>(callback));
+  }
+#endif
 
   // --- Callback registration ---
 
