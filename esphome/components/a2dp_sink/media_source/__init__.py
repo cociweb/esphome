@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import media_source, psram
+from esphome.components.esp32 import add_idf_sdkconfig_option
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TASK_STACK_IN_PSRAM
 from esphome.types import ConfigType
@@ -16,12 +17,28 @@ A2DPSinkMediaSource = a2dp_sink_ns.class_(
     media_source.MediaSource,
 )
 
+
+def validate_task_stack_in_psram(value):
+    if hasattr(psram, "validate_task_stack_in_psram"):
+        return psram.validate_task_stack_in_psram(value)
+    if value := cv.boolean(value):
+        return cv.requires_component("psram")(value)
+    return value
+
+
+def request_external_task_stack() -> None:
+    if hasattr(psram, "request_external_task_stack"):
+        psram.request_external_task_stack()
+    else:
+        add_idf_sdkconfig_option("CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True)
+
+
 CONFIG_SCHEMA = cv.All(
     media_source.media_source_schema(A2DPSinkMediaSource)
     .extend(
         {
             cv.GenerateID(CONF_A2DP_SINK_ID): cv.use_id(A2DPSink),
-            cv.Optional(CONF_TASK_STACK_IN_PSRAM): psram.validate_task_stack_in_psram,
+            cv.Optional(CONF_TASK_STACK_IN_PSRAM): validate_task_stack_in_psram,
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
@@ -37,4 +54,4 @@ async def to_code(config: ConfigType) -> None:
 
     if config.get(CONF_TASK_STACK_IN_PSRAM):
         cg.add(var.set_task_stack_in_psram(True))
-        psram.request_external_task_stack()
+        request_external_task_stack()
